@@ -1,0 +1,9 @@
+# CLI deploys upload the working directory, not the git tree - keep local
+# build artefacts and test-only files out of the function bundle.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.env
+.env.local
