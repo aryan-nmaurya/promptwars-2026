@@ -1,5 +1,13 @@
 # Deploying
 
+> **Already done.** Both projects exist, are connected to
+> `aryan-nmaurya/promptwars-2026`, have their root directories and env vars set,
+> and are deployed and public:
+> `promptwars-api.vercel.app` · `promptwars-web.vercel.app`.
+> The only outstanding step is creating the Postgres database — see
+> **Finish the deployment** in `README.md`. Keep the rest of this file as the
+> reference for rebuilding from scratch.
+
 Two Vercel projects from **one** Git repository. Deploy the API first — the web
 project needs its URL, and the API needs the web project's URL for CORS, so
 there is one deliberate second pass at the end.
@@ -137,3 +145,11 @@ The API cannot know the web URL until the web project exists, so finish here:
 | Postgres "too many connections" | A pool crept back in | `api/app/db.py` must keep `poolclass=NullPool` |
 | Wrong Python version | `.python-version` missing | `api/.python-version` must contain `3.12` |
 | Web build fails on types | A real type error | Fix the type. Do not set `ignoreBuildErrors: true`. |
+| `GET /app/main.py` returns your source | `vercel.json` used `rewrites` | Vercel checks the filesystem **before** `rewrites`, so every non-function file shadows the catch-all and is served as a static asset. Use `routes`, which runs first. This repo already does. |
+| CLI deploy 404s everything, build takes ~1s | `vercel deploy` run from inside `api/` | The CLI uploads the current directory **and** the project then applies `rootDirectory: api` on top, so the effective root becomes `api/api/` — no `requirements.txt`, no function, just static files. Deploy with `git push` instead; that applies the root directory exactly once. |
+
+## How deploys are triggered
+
+Both projects build from GitHub pushes to `main`. `git push` rebuilds both.
+Do **not** use `vercel deploy` from inside `api/` or `web/` — see the double
+root-directory trap above.

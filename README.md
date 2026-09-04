@@ -7,9 +7,12 @@
 > **LIVE URLS**
 > | What | URL |
 > | --- | --- |
-> | Web | `<!-- https://____.vercel.app -->` _TBD_ |
-> | API | `<!-- https://____.vercel.app -->` _TBD_ |
-> | API docs | `<!-- https://____.vercel.app/docs -->` _TBD_ |
+> | Web | https://promptwars-web.vercel.app |
+> | API | https://promptwars-api.vercel.app |
+> | API docs | https://promptwars-api.vercel.app/docs |
+>
+> Both are deployed and public. `/health` currently reports `db:false` because
+> `DATABASE_URL` is still the placeholder — see **Finish the deployment** below.
 
 Domain-free scaffolding. There are no product features here on purpose — the
 only thing this repo does is prove that every layer is wired up, so tomorrow
@@ -61,6 +64,35 @@ in `api/app/db.py`.
 API from Vercel's runtime and would never exercise CORS — which is precisely
 the thing that breaks in production. The check runs in the browser so a green
 result means the whole chain is genuinely correct.
+
+---
+
+## Finish the deployment
+
+Everything is live except the database. One step remains, and it needs the
+dashboard because the Vercel CLI has no `storage` subcommand.
+
+1. **Create the database.** Vercel → **promptwars-api → Storage → Create
+   Database → Postgres**. Connect it to the project; it injects `DATABASE_URL`
+   automatically. If you use Neon or Supabase directly instead, copy the
+   **pooled** URL (see the table above) and replace the placeholder:
+   ```bash
+   cd api
+   vercel env rm DATABASE_URL production --yes
+   printf '%s' '<your pooled URL>' | vercel env add DATABASE_URL production
+   ```
+2. **Create the tables**, pointing at production once:
+   ```bash
+   cd api && source .venv/bin/activate
+   DATABASE_URL="<your pooled URL>" python scripts/seed.py
+   ```
+3. **Redeploy the API** so it picks up the new variable — env vars are read at
+   boot:
+   ```bash
+   git commit --allow-empty -m "Redeploy with database" && git push
+   ```
+4. Open https://promptwars-web.vercel.app. The card must turn green:
+   **"API and database reachable"**.
 
 ---
 
