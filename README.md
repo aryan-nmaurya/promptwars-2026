@@ -11,8 +11,8 @@
 > | API | https://promptwars-api.vercel.app |
 > | API docs | https://promptwars-api.vercel.app/docs |
 >
-> Both are deployed and public. `/health` currently reports `db:false` because
-> `DATABASE_URL` is still the placeholder — see **Finish the deployment** below.
+> Both are deployed, public, and backed by Neon Postgres (`us-east-1`, matching
+> the `iad1` function region). `/health` returns `{"status":"ok","db":true}`.
 
 Domain-free scaffolding. There are no product features here on purpose — the
 only thing this repo does is prove that every layer is wired up, so tomorrow
@@ -67,32 +67,32 @@ result means the whole chain is genuinely correct.
 
 ---
 
-## Finish the deployment
+## Deployment status
 
-Everything is live except the database. One step remains, and it needs the
-dashboard because the Vercel CLI has no `storage` subcommand.
+Everything is live and verified end to end.
 
-1. **Create the database.** Vercel → **promptwars-api → Storage → Create
-   Database → Postgres**. Connect it to the project; it injects `DATABASE_URL`
-   automatically. If you use Neon or Supabase directly instead, copy the
-   **pooled** URL (see the table above) and replace the placeholder:
-   ```bash
-   cd api
-   vercel env rm DATABASE_URL production --yes
-   printf '%s' '<your pooled URL>' | vercel env add DATABASE_URL production
-   ```
-2. **Create the tables**, pointing at production once:
-   ```bash
-   cd api && source .venv/bin/activate
-   DATABASE_URL="<your pooled URL>" python scripts/seed.py
-   ```
-3. **Redeploy the API** so it picks up the new variable — env vars are read at
-   boot:
-   ```bash
-   git commit --allow-empty -m "Redeploy with database" && git push
-   ```
-4. Open https://promptwars-web.vercel.app. The card must turn green:
-   **"API and database reachable"**.
+| Layer | State |
+| --- | --- |
+| Web (`promptwars-web`) | Deployed, public, root directory `web`, framework Next.js |
+| API (`promptwars-api`) | Deployed, public, root directory `api`, Python 3.12 |
+| Database | Neon Postgres, `us-east-1`, pooled endpoint, tables created and seeded |
+| CORS | Allows the web origin, rejects others (verified) |
+| CRUD | POST / GET / PATCH / DELETE round trip verified against production |
+
+Deploys are triggered by **`git push` to `main`**, which rebuilds both projects.
+
+**Database credentials** are injected by the Neon integration (`DATABASE_URL`,
+plus `PG*` and `POSTGRES_*` aliases this app ignores). They exist only in the
+API project — the web project holds `NEXT_PUBLIC_API_URL` and nothing else.
+
+To reseed or add tables later:
+
+```bash
+cd api && source .venv/bin/activate
+vercel env pull /tmp/prod.env --environment production
+DATABASE_URL=$(grep '^DATABASE_URL=' /tmp/prod.env | cut -d= -f2- | tr -d '"') python scripts/seed.py
+rm /tmp/prod.env
+```
 
 ---
 
