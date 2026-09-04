@@ -114,7 +114,7 @@ Next → CORS → FastAPI → Postgres all work.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | yes | Postgres URL. `postgres://` and `postgresql://` are rewritten to `postgresql+asyncpg://` automatically. libpq-only params (`sslmode`, `channel_binding`) are stripped and translated into asyncpg's `ssl=True`, so you can paste a Neon/Supabase/Vercel URL verbatim. |
+| `DATABASE_URL` | yes | Postgres URL — paste the provider's string **verbatim**. `postgres://` / `postgresql://` are rewritten to `postgresql+asyncpg://`; libpq-only params (`sslmode`, `channel_binding`, `pgbouncer`) are stripped and translated into asyncpg's `ssl=True`; pooled endpoints are detected and made PgBouncer-safe. See the table below. |
 | `ALLOWED_ORIGINS` | yes in prod | Comma-separated origins for CORS. Exact scheme, no trailing slash. Add your production **and** preview web domains. |
 | `GOOGLE_API_KEY` | no | Server-side only. Never mirror into a `NEXT_PUBLIC_*` var. |
 | `ENV` | no | `development` \| `test` \| `preview` \| `production`. Outside dev/test, 500 responses are stripped to a generic message. |
@@ -124,6 +124,27 @@ Next → CORS → FastAPI → Postgres all work.
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_URL` | yes | Origin of the deployed API, no trailing slash. |
+
+### What `DATABASE_URL` actually looks like
+
+| Where | Value |
+| --- | --- |
+| **Local** (Homebrew Postgres, trust auth) | `postgresql://<your-mac-username>@localhost:5432/promptwars_dev` |
+| **Local** (password auth) | `postgresql://postgres:postgres@localhost:5432/app` |
+| **Neon / Vercel Postgres** | `postgresql://user:pass@ep-xxx-pooler.<region>.aws.neon.tech/neondb?sslmode=require` |
+| **Supabase** | `postgresql://postgres.<ref>:pass@aws-0-<region>.pooler.supabase.com:6543/postgres` |
+
+**Always use the pooled endpoint in production** — the hostname containing
+`-pooler`, or port `6543`. Serverless opens a fresh connection per invocation
+(`NullPool`), and the pooler is the only thing keeping you under
+`max_connections`.
+
+`app/db.py` detects a pooled endpoint and disables asyncpg's prepared-statement
+cache while giving each statement a UUID name. Without that, PgBouncer's
+transaction mode shares server connections between clients and you get
+`prepared statement "__asyncpg_stmt_1__" already exists` or
+`InvalidCachedStatementError` under concurrency — a failure that only appears
+once two requests overlap, which is to say, during the demo.
 
 > **`NEXT_PUBLIC_*` is compiled into the JavaScript the browser downloads.**
 > Anything you put there is public forever. Secrets belong in the API project's

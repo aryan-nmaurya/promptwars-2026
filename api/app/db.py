@@ -12,6 +12,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
@@ -29,9 +30,20 @@ logger = logging.getLogger(__name__)
 # libpq understands these; asyncpg raises TypeError on them. Managed Postgres
 # providers put them in the URL they give you, so strip and translate.
 _LIBPQ_ONLY_PARAMS = frozenset(
-    {"sslmode", "channel_binding", "target_session_attrs", "options", "connect_timeout"}
+    {
+        "sslmode",
+        "channel_binding",
+        "target_session_attrs",
+        "options",
+        "connect_timeout",
+        "pgbouncer",  # Supabase/Prisma-style URLs carry this; asyncpg rejects it
+    }
 )
 _LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", ""})
+
+#: Transaction-mode connection poolers. Every managed Postgres puts you behind
+#: one, and its hostname or port is the only hint you get.
+_POOLER_PORTS = frozenset({6543})
 
 
 def prepare_url(raw: str) -> tuple[str, dict[str, Any]]:
@@ -45,10 +57,27 @@ def prepare_url(raw: str) -> tuple[str, dict[str, Any]]:
     dropped = {k.lower(): v.lower() for k, v in params if k.lower() in _LIBPQ_ONLY_PARAMS}
 
     connect_args: dict[str, Any] = {}
+    host = parts.hostname or ""
     sslmode = dropped.get("sslmode", "")
-    is_local = (parts.hostname or "") in _LOCAL_HOSTS
+    is_local = host in _LOCAL_HOSTS
     if sslmode in ("require", "verify-ca", "verify-full") or (not is_local and sslmode != "disable"):
         connect_args["ssl"] = True
+
+    # Behind PgBouncer in transaction mode, server connections are shared, so
+    # asyncpg's numerically-named prepared statements collide across clients:
+    # "prepared statement __asyncpg_stmt_1__ already exists", or stale type
+    # caches raising InvalidCachedStatementError. Unique names plus no caching
+    # is SQLAlchemy's documented fix. Costs one extra round trip per statement,
+    # which is nothing next to a 2am outage.
+    is_pooled = (
+        "-pooler" in host
+        or (parts.port in _POOLER_PORTS)
+        or dropped.get("pgbouncer") == "true"
+    )
+    if is_pooled:
+        connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
+        connect_args["statement_cache_size"] = 0
+        logger.info("Pooled Postgres endpoint detected; prepared statement caching disabled")
 
     cleaned = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment))
     return cleaned, connect_args

@@ -34,7 +34,7 @@ Add under **Settings → Environment Variables**. Tick **Production**,
 
 | Key | Value | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | `postgresql://…` | Paste the pooled connection string from your Postgres provider verbatim. `sslmode=require` and `channel_binding` are handled in code. |
+| `DATABASE_URL` | `postgresql://…` | Paste the **pooled** connection string verbatim — hostname with `-pooler`, or port `6543`. `sslmode`, `channel_binding` and `pgbouncer` params are handled in code, as is PgBouncer's prepared-statement problem. Using the *direct* (non-pooled) URL will exhaust `max_connections` under load. |
 | `ALLOWED_ORIGINS` | `https://promptwars-web.vercel.app` | Fill in after Project 2 exists — see the second pass below. |
 | `ENV` | `production` | Use `preview` on the Preview environment if you want richer errors there. |
 | `GOOGLE_API_KEY` | *your key* | Optional. Production + Preview only. Never add this to the web project. |
