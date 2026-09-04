@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Design tokens. Channel triplets (not hex) so Tailwind's `/<alpha-value>`
+ * modifier works: `bg-primary/10` etc.
+ *
+ * Contrast is verified against WCAG 2.1: every text token clears 4.5:1 on both
+ * `--color-bg` and `--color-surface` in light and dark; `--color-border-strong`
+ * and `--color-ring` clear 3:1 for non-text UI boundaries.
+ */
+@layer base {
+  :root {
+    --color-bg: 255 255 255;
+    --color-surface: 245 248 252;
+    --color-fg: 13 21 38;
+    --color-muted: 74 87 104;
+    --color-border: 219 226 236;        /* decorative only */
+    --color-border-strong: 125 135 152; /* control boundaries, >= 3:1 */
+    --color-primary: 29 78 216;
+    --color-primary-hover: 23 62 173;
+    --color-primary-fg: 255 255 255;
+    --color-danger: 180 35 24;
+    --color-danger-fg: 255 255 255;
+    --color-success: 17 99 67;
+    --color-success-fg: 255 255 255;
+    --color-warning: 138 83 0;
+    --color-warning-fg: 255 255 255;
+    --color-ring: 29 78 216;
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: 11 17 32;
+      --color-surface: 20 29 47;
+      --color-fg: 232 238 251;
+      --color-muted: 162 176 198;
+      --color-border: 40 52 75;
+      --color-border-strong: 99 115 143;
+      --color-primary: 122 167 255;
+      --color-primary-hover: 154 190 255;
+      --color-primary-fg: 6 16 31;
+      --color-danger: 255 157 149;
+      --color-danger-fg: 42 9 6;
+      --color-success: 95 214 160;
+      --color-success-fg: 4 35 26;
+      --color-warning: 240 192 96;
+      --color-warning-fg: 43 30 2;
+      --color-ring: 122 167 255;
+
+      color-scheme: dark;
+    }
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-bg text-fg antialiased;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /**
+   * Global focus policy. Never remove this - if a control needs a different
+   * look, restyle the ring, do not hide it. `:focus-visible` keeps mouse users
+   * from seeing rings while keeping them for keyboard users.
+   */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-bg;
+  }
+
+  ::selection {
+    @apply bg-primary/20;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Visible only once focused - the skip link in the root layout. */
+  .skip-link {
+    @apply sr-only rounded-md bg-primary px-4 py-2 font-medium text-primary-fg;
+  }
+
+  .skip-link:focus {
+    @apply not-sr-only fixed left-4 top-4 z-50;
+  }
+}
