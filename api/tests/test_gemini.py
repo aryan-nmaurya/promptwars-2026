@@ -284,3 +284,17 @@ async def test_timeout_moves_on_instead_of_retrying_the_same_model() -> None:
     await service.generate_ideas("healthcare", "python")
 
     assert fake.attempts == ["model-a", "model-b"], "timeout must not be retried"
+
+
+async def test_budget_stops_the_chain_before_the_function_times_out() -> None:
+    """Five models at 20s each would outlast Vercel's 60s ceiling."""
+    service = GeminiService(
+        api_key="k", models=["a", "b", "c"], timeout=20.0, retries=0, budget=0.5
+    )
+    fake = _FakeModels({"a", "b", "c"}, None)
+    service._client = type("C", (), {"aio": type("A", (), {"models": fake})()})()  # noqa: SLF001
+
+    with pytest.raises(GeminiUnavailable):
+        await service.generate_ideas("healthcare", "python")
+
+    assert len(fake.attempts) < 3, "must stop early rather than try every model"

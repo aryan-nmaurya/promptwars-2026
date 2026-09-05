@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 
 from google import genai
@@ -111,11 +112,23 @@ class GeminiUnavailable(GeminiError):
 class GeminiService:
     """Thin async wrapper over the Gemini SDK. One instance per process."""
 
-    def __init__(self, api_key: str, models: list[str], timeout: float, retries: int = 1) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        models: list[str],
+        timeout: float,
+        retries: int = 1,
+        budget: float = 45.0,
+    ) -> None:
         self._client = genai.Client(api_key=api_key)
         self._models = models
         self._timeout = timeout
         self._retries = max(0, retries)
+        self._budget = budget
+
+    def _remaining(self, started: float) -> float:
+        """Seconds left in the overall budget for this request."""
+        return self._budget - (time.monotonic() - started)
 
     async def _call(
         self,
@@ -139,14 +152,19 @@ class GeminiService:
             ),
         )
         last: Exception | None = None
+        started = time.monotonic()
         for model in self._models:
             for attempt in range(self._retries + 1):
+                budget_left = self._remaining(started)
+                if budget_left <= 1.0:
+                    logger.warning("Gemini budget exhausted before model=%s", model)
+                    raise GeminiUnavailable(f"budget exhausted: {last}")
                 try:
                     return await asyncio.wait_for(
                         self._client.aio.models.generate_content(
                             model=model, contents=prompt, config=config
                         ),
-                        timeout=self._timeout,
+                        timeout=min(self._timeout, budget_left),
                     )
                 except TimeoutError:
                     # Do not retry a timeout. The model was too slow, not
@@ -225,9 +243,11 @@ class GeminiService:
     async def stream_answer(self, *, context: str, question: str) -> AsyncIterator[str]:
         """Yield the mentor's answer in chunks as the model produces it.
 
-        Only the first configured model is tried: once bytes are on the wire we
-        cannot restart cleanly, so the caller falls back to the non-streaming
-        path if this raises before the first chunk.
+        Falls through the model chain exactly like the non-streaming path, but
+        only until the first chunk is emitted: once bytes are on the wire the
+        client has already rendered them, so switching models would duplicate
+        text. Free-tier quota is per model per day, so this fallthrough is what
+        keeps the mentor working after one model is exhausted.
         """
         config = types.GenerateContentConfig(
             system_instruction=MENTOR_SYSTEM,
@@ -238,17 +258,34 @@ class GeminiService:
             f"{context}\n\n"
             f"{wrap_untrusted('Student question:', sanitize_text(question, max_length=1000))}"
         )
-        stream = await self._client.aio.models.generate_content_stream(
-            model=self._models[0], contents=prompt, config=config
-        )
-        produced = False
-        async for chunk in stream:
-            text = chunk.text
-            if text:
-                produced = True
-                yield text
-        if not produced:
-            raise GeminiParseError("stream produced no text")
+
+        last: Exception | None = None
+        started = time.monotonic()
+        for model in self._models:
+            if self._remaining(started) <= 1.0:
+                logger.warning("Gemini stream budget exhausted before model=%s", model)
+                break
+            produced = False
+            try:
+                stream = await self._client.aio.models.generate_content_stream(
+                    model=model, contents=prompt, config=config
+                )
+                async for chunk in stream:
+                    text = chunk.text
+                    if text:
+                        produced = True
+                        yield text
+            except Exception as exc:  # noqa: BLE001 - try the next model
+                last = exc
+                logger.warning("Gemini stream failed model=%s error=%s", model, type(exc).__name__)
+                if produced:
+                    # Partial answer already sent; restarting would duplicate it.
+                    raise
+                continue
+            if produced:
+                return
+            last = GeminiParseError(f"{model} streamed no text")
+        raise GeminiUnavailable(str(last))
 
     async def ping(self) -> bool:
         """Cheap reachability probe for /health. Never raises."""
@@ -272,4 +309,5 @@ def build_gemini(settings: Settings) -> GeminiService | None:
         models=settings.gemini_models,
         timeout=settings.GEMINI_TIMEOUT_SECONDS,
         retries=settings.GEMINI_RETRIES,
+        budget=settings.GEMINI_BUDGET_SECONDS,
     )

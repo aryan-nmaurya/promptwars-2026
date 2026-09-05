@@ -46,8 +46,18 @@ class Settings(BaseSettings):
     # rehearsal, silently serving the seeded fallback. 20s covers the slow
     # case; worst case is 2 models x 20s = 40s, inside vercel.json's
     # maxDuration of 60s.
-    GEMINI_MODELS: str = "gemini-3.6-flash,gemini-3.5-flash"
+    # Free-tier quota is 20 requests per DAY per model, so every extra model
+    # in this chain multiplies the demo budget. All five are verified working
+    # against this key; quality-first order, faster lite models as backstop.
+    GEMINI_MODELS: str = (
+        "gemini-3.6-flash,gemini-3.5-flash,gemini-3-flash-preview,"
+        "gemini-3.1-flash-lite,gemini-3.5-flash-lite"
+    )
     GEMINI_TIMEOUT_SECONDS: float = 20.0
+    # Ceiling across the whole model chain. Quota errors fail in under a
+    # second, so the chain is normally fast, but two slow models could
+    # otherwise overrun vercel.json's maxDuration of 60s.
+    GEMINI_BUDGET_SECONDS: float = 45.0
     # Retries apply to transient errors only, never to timeouts - retrying a
     # model that just ran out of time spends the budget that the next model
     # needs.
