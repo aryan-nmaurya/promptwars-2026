@@ -44,5 +44,9 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm run check
+      - run: npm run typecheck
+      # --max-warnings=0: accessibility findings from jsx-a11y are warnings,
+      # and a warning that does not fail the build is a warning nobody reads.
+      - run: npm run lint
+      - run: npm test
       - run: npm run build

@@ -4,9 +4,8 @@
 > `aryan-nmaurya/promptwars-2026`, have their root directories and env vars set,
 > and are deployed and public:
 > `promptwars-api.vercel.app` · `promptwars-web.vercel.app`.
-> The only outstanding step is creating the Postgres database — see
-> **Finish the deployment** in `README.md`. Keep the rest of this file as the
-> reference for rebuilding from scratch.
+> Keep this file as the reference for rebuilding from scratch, and use the
+> **Deploy checklist** below to verify a fresh environment.
 
 Two Vercel projects from **one** Git repository. Deploy the API first — the web
 project needs its URL, and the API needs the web project's URL for CORS, so
@@ -123,7 +122,10 @@ The API cannot know the web URL until the web project exists, so finish here:
 4. Go to **promptwars-api → Deployments**, open the latest one, click the **⋯**
    menu → **Redeploy**. Environment variables are read at boot, so the change
    does not apply until you redeploy.
-5. Open the web URL. The card must read **"API and database reachable"**.
+5. Open the web URL and go to `/projects`. The **Gemini** card in the sidebar
+   reads its status from `/health` — it must show **Live**, not **Unknown**
+   (the API is unreachable or the origin is missing from `ALLOWED_ORIGINS`) and
+   not **Degraded** (the API is up but Gemini is not answering).
 
 ---
 
@@ -134,7 +136,7 @@ The API cannot know the web URL until the web project exists, so finish here:
 - [ ] `python scripts/seed.py` has been run if the stable demo project is wanted
 - [ ] `ALLOWED_ORIGINS` on the API contains the exact web production origin
 - [ ] API redeployed *after* `ALLOWED_ORIGINS` was set
-- [ ] Web home page shows the green card
+- [ ] The sidebar Gemini card on `/projects` reads **Live**
 - [ ] No secret exists in any `NEXT_PUBLIC_*` variable
 - [ ] LIVE URLS filled into `README.md`
 - [ ] `GOOGLE_API_KEY` set on the API project only, as a Secret
@@ -148,7 +150,8 @@ The API cannot know the web URL until the web project exists, so finish here:
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| Web shows "Could not reach the API" | Origin missing from `ALLOWED_ORIGINS`, or the API is down | Add the exact origin (scheme, no trailing slash), then **redeploy the API** |
+| Web shows "Could not reach the API", or the Gemini card reads **Unknown** | Origin missing from `ALLOWED_ORIGINS`, or the API is down | Add the exact origin (scheme, no trailing slash), then **redeploy the API** |
+| Gemini card reads **Degraded** | The API is reachable but every model failed the `/health` probe | Usually quota. See the *Everything shows "Fallback mode"* row below |
 | `/health` returns `db:false` | Bad `DATABASE_URL`, or the DB rejects TLS | Check Runtime Logs; use the **pooled** connection string |
 | API 404s on every path | `vercel.json` not picked up | Root Directory must be `api`, so `api/vercel.json` is the project's config |
 | `ModuleNotFoundError: app` | Wrong root directory | Root Directory is `api`, not the repo root |

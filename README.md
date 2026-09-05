@@ -44,6 +44,7 @@ GitHub repository with the frozen scope and produces an evidence-backed
 | **Planned vs Built evaluation** | [`api/app/routers/evaluations.py`](api/app/routers/evaluations.py) · `POST /projects/{id}/evaluate` | Compares the frozen plan with commit-pinned evidence from a public GitHub repository |
 | **Bounded GitHub inspection** | [`api/app/services/github.py`](api/app/services/github.py) | Reads a capped tree and selected text files; it rejects secret, binary, vendor and oversized input and never executes code |
 | **Shareable without login** | `Project.id` + one-time edit capability in [`api/app/project_access.py`](api/app/project_access.py) | Anyone with the random URL can read; only the creating browser can mutate, use the mentor, or trigger evaluation |
+| **Optional account** | [`api/app/routers/auth.py`](api/app/routers/auth.py) + [`api/app/auth_service.py`](api/app/auth_service.py) | Not required by any flow. Signing up adopts the projects already held on this device (PBKDF2-SHA256, 600k rounds; only session digests stored) |
 | **Google service, visibly used** | `GeminiBadge` beside both AI actions | "Powered by Gemini" on idea generation and on mentor answers |
 | **Honest degradation** | [`api/app/services/fallback.py`](api/app/services/fallback.py) + [`web/components/FallbackBanner.tsx`](web/components/FallbackBanner.tsx) | When every model fails, the seeded project is served and the UI says so rather than passing it off as live |
 | **Streamed mentor answers** | [`api/app/routers/mentor.py`](api/app/routers/mentor.py) `POST .../mentor/stream` + [`web/lib/stream.ts`](web/lib/stream.ts) | Server-sent events, rendered as sanitized markdown |
@@ -198,20 +199,35 @@ npm run dev
 
 ## Tests
 
+### API — 147 tests
+
 ```bash
-cd api && source .venv/bin/activate && ./lint.sh
+cd api && source .venv/bin/activate && ./lint.sh   # ruff check + format + pytest
 ```
 
-**101+ tests, no infrastructure required** — they run on in-memory SQLite and a
-stubbed Gemini, so `pytest` works offline. Every endpoint has a happy-path and a
+**No infrastructure required** — they run on in-memory SQLite and a stubbed
+Gemini, so `pytest` works offline. Every endpoint has a happy-path and a
 failure-path test, plus the core logic: model fallthrough, timeouts not being
 retried, the overall budget ceiling, prompt building and injection stripping,
 response parsing, mentor grounding, owner capabilities, SSE streaming,
-route-scoped rate limiting, GitHub URL/size/path/secret boundaries, immutable
-evaluation caching, evidence citation enforcement, cascade deletes, and id opacity.
+route-scoped rate limiting, GitHub URL/size/path/secret boundaries, every
+collector failure mapping to its own status code, immutable evaluation caching,
+evidence citation enforcement, expired-session sweeping, cascade deletes, id
+opacity, and the seeded demo path at `/projects/demo-project-2026`.
+
+### Web — 20 tests
 
 ```bash
-cd web && npx tsc --noEmit    # strict, zero `any`
+cd web && npm run check    # tsc --noEmit + eslint --max-warnings=0 + vitest
+```
+
+Component tests (vitest + Testing Library, jsdom) cover the demo path itself:
+the three onboarding steps and the exact payload they send, choosing an idea
+and persisting the one-time edit capability, ticking a roadmap step with its
+optimistic rollback, the streamed mentor answer, and the failure branch of each
+one. Run them alone with `npm test`, or watch with `npm run test:watch`.
+
+```bash
 cd web && npm run build
 ```
 
@@ -228,7 +244,13 @@ rebuild on `git push` to `main`. Full click-by-click in [DEPLOY.md](DEPLOY.md).
 
 ## Not building (deliberately)
 
-Accounts, private-repository OAuth, repository cloning/execution, background jobs,
-admin dashboards, payments, and multi-user collaboration remain out of scope.
-The project URL is a read capability; the creating browser's separate edit
-capability protects every mutation and paid AI action.
+Private-repository OAuth, repository cloning/execution, background jobs, admin
+dashboards, payments, and multi-user collaboration remain out of scope.
+
+**Accounts are optional, not required.** Every core flow — generating ideas,
+choosing one, ticking the roadmap off, asking the mentor, evaluating a
+repository — works signed out, and `/onboarding` is reachable without an
+account. Signing up only attaches the projects already on this device to an
+email so they survive a cleared browser. The project URL stays a read
+capability; the creating browser's separate edit capability, not the account,
+is what protects every mutation and paid AI action.

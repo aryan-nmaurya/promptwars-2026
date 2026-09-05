@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+._*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# Local env files live beside the project that reads them; each of api/ and
+# web/ tracks its own .env.example and ignores the real thing.
+.env
+.env.local
+.env.*.local
