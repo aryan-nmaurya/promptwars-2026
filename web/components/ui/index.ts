@@ -19,3 +19,11 @@ export type { SpinnerProps } from "./Spinner";
 
 export { StatusRegion, Toast } from "./Toast";
 export type { StatusRegionProps, StatusTone, ToastProps } from "./Toast";
+
+export { GeminiBadge } from "./GeminiBadge";
+
+export { ProgressBar } from "./ProgressBar";
+export type { ProgressBarProps } from "./ProgressBar";
+
+export { Textarea } from "./Textarea";
+export type { TextareaProps } from "./Textarea";

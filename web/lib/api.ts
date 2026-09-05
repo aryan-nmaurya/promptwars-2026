@@ -198,3 +198,82 @@ export interface Page<T> {
   items: T[];
   meta: { total: number; limit: number; offset: number };
 }
+
+// --- IdeaForge domain types (mirror api/app/schemas.py) ----------------------
+
+export interface Idea {
+  id: string;
+  position: number;
+  title: string;
+  summary: string;
+  problem_solved: string;
+  feasibility: number;
+  tech_stack: string[];
+}
+
+export interface IdeaSet {
+  id: string;
+  interests: string;
+  skills: string;
+  created_at: string;
+  ideas: Idea[];
+}
+
+export interface RoadmapStep {
+  id: string;
+  phase: string;
+  position: number;
+  title: string;
+  detail: string;
+  is_done: boolean;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  summary: string;
+  problem_solved: string;
+  feasibility: number;
+  tech_stack: string[];
+  interests: string;
+  skills: string;
+  created_at: string;
+  steps: RoadmapStep[];
+  steps_total: number;
+  steps_done: number;
+}
+
+export interface ProjectSummary {
+  id: string;
+  title: string;
+  summary: string;
+  feasibility: number;
+  tech_stack: string[];
+  created_at: string;
+}
+
+export interface MentorMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface MentorReply {
+  question: MentorMessage;
+  answer: MentorMessage;
+}
+
+/** Groups roadmap steps by phase, preserving server order. */
+export function groupByPhase(steps: RoadmapStep[]): { phase: string; steps: RoadmapStep[] }[] {
+  const phases: { phase: string; steps: RoadmapStep[] }[] = [];
+  for (const step of steps) {
+    const last = phases.at(-1);
+    if (last && last.phase === step.phase) {
+      last.steps.push(step);
+    } else {
+      phases.push({ phase: step.phase, steps: [step] });
+    }
+  }
+  return phases;
+}
