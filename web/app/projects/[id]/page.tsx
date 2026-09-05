@@ -10,7 +10,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   try {
     const project = await api.get<Project>(`/projects/${id}`);
     return { title: project.title };
-  } catch {
+  } catch (cause: unknown) {
+    // generateMetadata runs before the page body, so without this a missing
+    // project renders the 404 page under a "Project" tab title.
+    if (cause instanceof ApiError && cause.status === 404) return { title: "Not found" };
     return { title: "Project" };
   }
 }
