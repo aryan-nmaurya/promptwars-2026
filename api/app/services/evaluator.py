@@ -18,7 +18,11 @@ from app.schemas import (
 from app.services.gemini import GeminiService, GeneratedPlannedItem
 from app.services.github import RepositoryEvidence, is_security_relevant_path
 
-EVALUATOR_VERSION = "2026-09-05.1"
+#: Part of the (project, commit, version) cache key, so it MUST be raised
+#: whenever selection, scoring or category assessment changes meaning -
+#: otherwise a repository evaluated under the old logic replays that result
+#: forever instead of being measured again.
+EVALUATOR_VERSION = "2026-09-05.2"
 
 
 class EvaluatedResult(BaseModel):
