@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 /**
  * One-time fade-up as a phase scrolls into view.
  *
- * Purely additive: the content is in the DOM and readable from the first
- * paint, and if IntersectionObserver is missing or the user prefers reduced
- * motion, the element is simply shown immediately.
+ * Fail-safe by construction: the CSS leaves `.reveal` fully visible, and JS
+ * opts an element into the animation only when it starts below the fold. If
+ * JavaScript never runs, throws, or the observer never fires, the roadmap is
+ * still readable — a decorative animation must never be able to hide content.
  */
 export function PhaseReveal({ index, children }: { index: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -18,10 +19,12 @@ export function PhaseReveal({ index, children }: { index: number; children: Reac
     if (node === null) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced || typeof IntersectionObserver === "undefined") {
-      node.classList.add("is-visible");
-      return;
-    }
+    if (reduced || typeof IntersectionObserver === "undefined") return;
+
+    // Only animate what starts below the fold. Anything already on screen
+    // stays visible, which avoids a visible->hidden->visible flash.
+    if (node.getBoundingClientRect().top <= window.innerHeight) return;
+    node.classList.add("will-reveal");
 
     const observer = new IntersectionObserver(
       (entries) => {

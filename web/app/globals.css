@@ -114,21 +114,27 @@
     @apply not-sr-only fixed left-4 top-4 z-50;
   }
 
-  /* Staggered phase reveal. Only runs when JS adds .is-visible, and the
-     reduced-motion rule above flattens it to an instant appearance. */
+  /* Staggered phase reveal.
+     Visible by DEFAULT: if JavaScript never runs, fails, or the observer
+     never fires, the roadmap is still readable. JS opts an element in with
+     .will-reveal only when it starts below the fold, then .is-visible
+     animates it. A broken animation must never hide the content. */
   .reveal {
-    opacity: 0;
-    transform: translateY(12px);
     transition: opacity 520ms ease-out, transform 520ms ease-out;
   }
 
-  .reveal.is-visible {
+  .reveal.will-reveal {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  .reveal.will-reveal.is-visible {
     opacity: 1;
     transform: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    .reveal.will-reveal {
       opacity: 1;
       transform: none;
     }
