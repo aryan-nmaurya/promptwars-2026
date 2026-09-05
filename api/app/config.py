@@ -41,13 +41,16 @@ class Settings(BaseSettings):
     # Tried in order; the first that answers wins. Measured against this key:
     # gemini-2.5-* is 404 for new keys, *-latest aliases return 503, and
     # gemini-3.5-flash intermittently 500s - so the stable model leads.
-    # Measured: ~5-6s from Vercel (iad1 sits next to Google), ~18s from a
-    # laptop in India. 8s is right in production; raise it in local .env or
-    # every local call will time out and fall back.
-    # Worst case 2 models x (1 + GEMINI_RETRIES) x timeout must stay under
-    # vercel.json's maxDuration of 60s.
+    # Measured from Vercel: idea generation ~6s, but roadmap generation is
+    # heavier (12-14 steps) and exceeded 8s on both models during a live
+    # rehearsal, silently serving the seeded fallback. 20s covers the slow
+    # case; worst case is 2 models x 20s = 40s, inside vercel.json's
+    # maxDuration of 60s.
     GEMINI_MODELS: str = "gemini-3.6-flash,gemini-3.5-flash"
-    GEMINI_TIMEOUT_SECONDS: float = 8.0
+    GEMINI_TIMEOUT_SECONDS: float = 20.0
+    # Retries apply to transient errors only, never to timeouts - retrying a
+    # model that just ran out of time spends the budget that the next model
+    # needs.
     GEMINI_RETRIES: int = 1
     IDEAS_CACHE_TTL_SECONDS: float = 600.0
 

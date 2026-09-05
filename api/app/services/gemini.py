@@ -139,8 +139,6 @@ class GeminiService:
             ),
         )
         last: Exception | None = None
-        # Each model gets one retry before we move on: transient 5xx and
-        # timeouts are the common failure here, and both usually clear.
         for model in self._models:
             for attempt in range(self._retries + 1):
                 try:
@@ -150,16 +148,14 @@ class GeminiService:
                         ),
                         timeout=self._timeout,
                     )
-                except TimeoutError as exc:
+                except TimeoutError:
+                    # Do not retry a timeout. The model was too slow, not
+                    # unlucky, and a second attempt spends the budget the
+                    # next model needs. Move on immediately.
                     last = GeminiTimeoutError(f"{model} exceeded {self._timeout}s")
-                    logger.warning(
-                        "Gemini timeout model=%s attempt=%d/%d",
-                        model,
-                        attempt + 1,
-                        self._retries + 1,
-                    )
-                    del exc
-                except Exception as exc:  # noqa: BLE001 - any failure means retry, then next model
+                    logger.warning("Gemini timeout model=%s after %.0fs", model, self._timeout)
+                    break
+                except Exception as exc:  # noqa: BLE001 - transient: retry, then next model
                     last = exc
                     logger.warning(
                         "Gemini failure model=%s attempt=%d/%d error=%s",

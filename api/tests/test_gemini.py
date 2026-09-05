@@ -250,3 +250,37 @@ async def test_blank_mentor_text_is_a_parse_error() -> None:
 
     with pytest.raises(GeminiParseError):
         await service.answer_question(context="c", question="q")
+
+
+async def test_timeout_moves_on_instead_of_retrying_the_same_model() -> None:
+    """A slow model is slow; retrying it burns the next model's budget."""
+
+    class _SlowThenFast(_FakeModels):
+        """model-a always times out; model-b answers. Records each call once."""
+
+        async def generate_content(self, *, model: str, contents: str, config: object) -> object:
+            if model == "model-a":
+                self.attempts.append(model)
+                raise TimeoutError
+            return await super().generate_content(model=model, contents=contents, config=config)
+
+    payload = GeneratedIdeas.model_validate(
+        {
+            "ideas": [
+                {
+                    "title": "t",
+                    "summary": "s",
+                    "problem_solved": "p",
+                    "feasibility": 5,
+                    "tech_stack": ["python"],
+                }
+            ]
+        }
+    )
+    service = GeminiService(api_key="k", models=["model-a", "model-b"], timeout=5.0, retries=1)
+    fake = _SlowThenFast(set(), payload)
+    service._client = type("C", (), {"aio": type("A", (), {"models": fake})()})()  # noqa: SLF001
+
+    await service.generate_ideas("healthcare", "python")
+
+    assert fake.attempts == ["model-a", "model-b"], "timeout must not be retried"
