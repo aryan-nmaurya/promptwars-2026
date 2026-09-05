@@ -79,11 +79,12 @@ async def test_unknown_project_is_404(client: AsyncClient) -> None:
 
 
 async def test_projects_cannot_be_globally_enumerated(client: AsyncClient) -> None:
+    """The list endpoint is scoped to the caller; there is no page of everyone's work."""
     await _make_project(client)
 
     response = await client.get("/projects")
 
-    assert response.status_code == 405
+    assert response.status_code == 401
 
 
 async def test_ticking_a_step_persists(client: AsyncClient) -> None:

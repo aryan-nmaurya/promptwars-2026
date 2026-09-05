@@ -139,3 +139,29 @@ async def test_rotating_session_ids_still_hits_the_ip_ceiling(client: AsyncClien
     ]
 
     assert 429 in codes, "rotating session ids must still hit the IP ceiling"
+
+
+async def test_two_students_with_identical_input_get_their_own_generation(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    """The cache must never let one browser's ideas surface in another's."""
+    body = {"interests": "accessibility", "skills": "python"}
+
+    first = await client.post("/ideas", json=body, headers={"x-session-id": "browser-one-aaaa"})
+    second = await client.post("/ideas", json=body, headers={"x-session-id": "browser-two-bbbb"})
+
+    assert first.json()["id"] != second.json()["id"]
+    assert gemini.calls.count("ideas") == 2, "a second student must get their own Gemini call"
+
+
+async def test_one_browser_resubmitting_the_same_form_still_reuses_its_generation(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    """The saving the cache exists for - a reload or an impatient second click."""
+    body = {"interests": "accessibility", "skills": "python"}
+    headers = {"x-session-id": "browser-one-aaaa"}
+
+    await client.post("/ideas", json=body, headers=headers)
+    await client.post("/ideas", json=body, headers=headers)
+
+    assert gemini.calls.count("ideas") == 1

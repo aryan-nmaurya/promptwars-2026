@@ -5,13 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 
 from app.cache import TTLCache, cache_key
 from app.config import get_settings
-from app.deps import GeminiDep, SessionDep
+from app.deps import GeminiDep, OptionalUserDep, SessionDep
 from app.models import Idea, IdeaSet
-from app.ratelimit import RateLimiter, default_rate_limit
+from app.ratelimit import RateLimiter, default_rate_limit, session_id
 from app.schemas import ErrorResponse, IdeaSetCreate, IdeaSetRead
 from app.services.fallback import fallback_ideas
 from app.services.gemini import GeminiError, GeneratedIdea
@@ -34,6 +34,13 @@ IdeaSetId = Annotated[str, Path(min_length=8, max_length=32)]
 
 #: Repeated identical submissions inside the window reuse the same generation
 #: instead of paying for another Gemini call. Best effort - a miss is harmless.
+#:
+#: Keyed by session as well as by input. Keying on (interests, skills) alone
+#: made the cache global: two students who both picked, say, "Accessibility"
+#: and "Python" received byte-identical ideas, and on a shared machine every
+#: new sign-up saw whatever the last person generated. The saving this is for
+#: is one browser resubmitting the same form - a reload, a back button, an
+#: impatient second click - which is per session by definition.
 _ideas_cache: TTLCache[list[GeneratedIdea]] = TTLCache(
     ttl_seconds=get_settings().IDEAS_CACHE_TTL_SECONDS
 )
@@ -45,10 +52,15 @@ def reset_ideas_cache() -> None:
 
 
 async def _generate(
-    gemini: GeminiDep, interests: str, skills: str, *, refresh: bool = False
+    gemini: GeminiDep,
+    interests: str,
+    skills: str,
+    *,
+    session_key: str,
+    refresh: bool = False,
 ) -> tuple[list[GeneratedIdea], bool]:
-    """Return (ideas, used_fallback), preferring a cached generation."""
-    key = cache_key(interests, skills)
+    """Return (ideas, used_fallback), preferring this session's cached generation."""
+    key = cache_key(session_key, interests, skills)
     if not refresh:
         cached = _ideas_cache.get(key)
         if cached is not None:
@@ -76,7 +88,9 @@ async def create_idea_set(
     payload: IdeaSetCreate,
     session: SessionDep,
     gemini: GeminiDep,
+    request: Request,
     refresh: Annotated[bool, Query(description="Bypass a prior cached generation")] = False,
+    current_user: OptionalUserDep = None,
 ) -> IdeaSetRead:
     """Ask Gemini for ideas, persist them, and return the set.
 
@@ -84,8 +98,11 @@ async def create_idea_set(
     the student sees a real project rather than a dead screen. The set records
     which happened so the UI can say so.
     """
+    # A signed-in student is the same person across their devices; a signed-out
+    # one is identified only by the anonymous per-browser id.
+    session_key = f"u:{current_user.id}" if current_user is not None else f"s:{session_id(request)}"
     generated, used_fallback = await _generate(
-        gemini, payload.interests, payload.skills, refresh=refresh
+        gemini, payload.interests, payload.skills, session_key=session_key, refresh=refresh
     )
 
     idea_set = IdeaSet(

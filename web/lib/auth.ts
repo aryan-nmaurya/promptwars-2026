@@ -3,7 +3,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 import { api, type AuthResponse, type User } from "./api";
-import { getProjectEditToken, useRecentProjects } from "./project-access";
+import { forgetLocalProjects, getProjectEditToken, useRecentProjects } from "./project-access";
 
 const AUTH_TOKEN_KEY = "ideaforge.auth.token";
 const AUTH_USER_KEY = "ideaforge.auth.user";
@@ -98,6 +98,10 @@ export async function signOut(): Promise<void> {
     // Best-effort remote invalidation; local cleanup happens regardless
   }
   clearSession();
+  // The project index and edit capabilities are browser-scoped. Leaving them
+  // behind handed the next account on this machine the previous student's
+  // projects, and the capability to edit them.
+  forgetLocalProjects();
 }
 
 export interface SessionState {

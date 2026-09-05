@@ -10,9 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
-from app.deps import GeminiDep, SessionDep
+from app.deps import GeminiDep, OptionalUserDep, SessionDep
 from app.models import Evaluation
-from app.project_access import verify_project_edit_token
+from app.project_access import authorize_project_write
 from app.ratelimit import RateLimiter
 from app.routers.common import evaluation_to_read, load_project
 from app.schemas import ErrorResponse, EvaluationRead, RepositoryEvaluate
@@ -75,11 +75,12 @@ async def evaluate_repository(
     gemini: GeminiDep,
     project_id: ProjectId,
     edit_token: Annotated[str | None, Header(alias="x-project-edit-token")] = None,
+    current_user: OptionalUserDep = None,
 ) -> EvaluationRead:
     """Inspect bounded text evidence; repository code is never cloned or executed."""
 
     project = await load_project(session, project_id)
-    verify_project_edit_token(project, edit_token)
+    authorize_project_write(project, edit_token, current_user)
     settings = get_settings()
     try:
         async with GitHubEvidenceCollector(token=settings.GITHUB_TOKEN) as collector:

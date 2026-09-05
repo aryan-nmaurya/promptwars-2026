@@ -6,19 +6,23 @@ import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import noload
 
-from app.deps import GeminiDep, OptionalUserDep, SessionDep
+from app.deps import CurrentUserDep, GeminiDep, OptionalUserDep, SessionDep
 from app.models import Evaluation, Idea, IdeaSet, Project, RoadmapStep
-from app.project_access import issue_edit_token, verify_project_edit_token
+from app.project_access import authorize_project_write, issue_edit_token
 from app.ratelimit import RateLimiter, default_rate_limit
 from app.routers.common import evaluation_to_read, load_project
 from app.schemas import (
     ErrorResponse,
+    Page,
+    PageMeta,
     ProjectCreate,
     ProjectCreated,
     ProjectRead,
+    ProjectSummary,
     RoadmapStepRead,
     StepUpdate,
 )
@@ -138,6 +142,49 @@ async def create_project(
     return ProjectCreated(project=_to_read(project), edit_token=edit_token)
 
 
+@router.get(
+    "",
+    response_model=Page[ProjectSummary],
+    summary="List the signed-in user's projects",
+    responses={401: {"model": ErrorResponse, "description": "Authentication required"}},
+)
+async def list_my_projects(
+    session: SessionDep,
+    current_user: CurrentUserDep,
+    response: Response,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> Page[ProjectSummary]:
+    """Newest first, scoped to the caller.
+
+    This is what makes an account mean something. Before it existed, the only
+    index of a student's projects was a list in one browser's localStorage,
+    so signing in on a second device - or as a second person on a shared
+    machine - showed whatever that browser happened to hold rather than what
+    the account owned.
+
+    Never enumerable: the filter is the authenticated user's own id, so there
+    is no page of "all projects" for anyone.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    where = Project.user_id == current_user.id
+    total = await session.scalar(select(func.count()).select_from(Project).where(where)) or 0
+    rows = await session.scalars(
+        select(Project)
+        .where(where)
+        # A summary row needs none of the children, and hydrating them here is
+        # what made loading a user cost five queries.
+        .options(noload(Project.steps), noload(Project.messages))
+        .order_by(Project.created_at.desc(), Project.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return Page[ProjectSummary](
+        items=[ProjectSummary.model_validate(row) for row in rows],
+        meta=PageMeta(total=total, limit=limit, offset=offset),
+    )
+
+
 @router.get("/{project_id}", response_model=ProjectRead, summary="Read a project")
 async def get_project(session: SessionDep, project_id: ResourceId) -> ProjectRead:
     """Public by design - this is the URL a student shares with a professor."""
@@ -162,10 +209,11 @@ async def update_step(
     step_id: ResourceId,
     payload: StepUpdate,
     edit_token: Annotated[str | None, Header(alias="x-project-edit-token")] = None,
+    current_user: OptionalUserDep = None,
 ) -> RoadmapStepRead:
     """Scoped to the project so a step id alone cannot mutate another project."""
     project = await load_project(session, project_id)
-    verify_project_edit_token(project, edit_token)
+    authorize_project_write(project, edit_token, current_user)
     step = await session.scalar(
         select(RoadmapStep).where(RoadmapStep.id == step_id, RoadmapStep.project_id == project_id)
     )

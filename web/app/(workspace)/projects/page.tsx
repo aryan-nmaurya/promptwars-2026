@@ -2,7 +2,7 @@ import { RecentProjects } from "@/components/RecentProjects";
 
 export const metadata = { title: "My projects" };
 
-/** A private-on-device index: public projects are never globally enumerated. */
+/** Account-scoped when signed in, device-local when not. Never globally enumerable. */
 export default function ProjectsPage() {
   return (
     <div className="flex flex-col gap-8">
@@ -10,8 +10,9 @@ export default function ProjectsPage() {
         <p className="font-mono text-xs uppercase tracking-widest text-amber">Private index</p>
         <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">My projects</h1>
         <p className="text-sm text-ink-muted">
-          Only projects created in this browser appear here. A shared project URL remains
-          read-only on other devices.
+          Signed in, these are your account&rsquo;s projects and follow you to any device.
+          Signed out, only projects created in this browser appear. A shared project URL is
+          always read-only for anyone else.
         </p>
       </header>
       <RecentProjects />

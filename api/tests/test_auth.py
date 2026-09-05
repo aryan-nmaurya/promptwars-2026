@@ -16,6 +16,9 @@ SIGNUP_PAYLOAD = {
     "password": "CorrectHorseBattery99!",
 }
 
+#: Input for the idea generation that a test project is built from.
+PAYLOAD = {"interests": "healthcare", "skills": "python"}
+
 
 async def test_signup_and_me_returns_user(client: AsyncClient) -> None:
     """A new user can register and read their own profile, which never exposes credentials."""
@@ -257,3 +260,101 @@ async def test_a_swept_session_belongs_only_to_the_user_who_logged_in(
             .where(DbSession.expires_at <= datetime.now(UTC))
         )
     assert expired_elsewhere == 1, "another account's expired session must survive"
+
+
+async def _signup(client: AsyncClient, email: str) -> str:
+    body = (
+        await client.post("/auth/signup", json={"email": email, "password": "correct-horse-1"})
+    ).json()
+    return body["session_token"]
+
+
+async def _make_project_as(client: AsyncClient, token: str | None) -> dict:
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    ideas = (await client.post("/ideas", json=PAYLOAD, headers=headers)).json()
+    return (
+        await client.post("/projects", json={"idea_id": ideas["ideas"][0]["id"]}, headers=headers)
+    ).json()
+
+
+async def test_the_project_list_shows_only_the_callers_own_work(client: AsyncClient) -> None:
+    """The bug this endpoint exists to fix: two accounts on one browser."""
+    first = await _signup(client, "first@university.edu")
+    second = await _signup(client, "second@university.edu")
+
+    mine = await _make_project_as(client, first)
+    theirs = await _make_project_as(client, second)
+
+    listed = (await client.get("/projects", headers={"Authorization": f"Bearer {first}"})).json()
+
+    ids = [row["id"] for row in listed["items"]]
+    assert mine["project"]["id"] in ids
+    assert theirs["project"]["id"] not in ids, "one account must never see another's projects"
+    assert listed["meta"]["total"] == 1
+
+
+async def test_the_project_list_requires_an_account(client: AsyncClient) -> None:
+    await _make_project_as(client, None)
+
+    assert (await client.get("/projects")).status_code == 401
+    assert (
+        await client.get("/projects", headers={"Authorization": "Bearer not-a-real-token"})
+    ).status_code == 401
+
+
+async def test_an_owner_can_edit_from_a_device_that_never_held_the_capability(
+    client: AsyncClient,
+) -> None:
+    """Signing in on a new machine must give back write access, not just a list."""
+    token = await _signup(client, "owner@university.edu")
+    created = await _make_project_as(client, token)
+    project_id = created["project"]["id"]
+    step_id = created["project"]["steps"][0]["id"]
+
+    # No x-project-edit-token header anywhere: only the account proves ownership.
+    response = await client.patch(
+        f"/projects/{project_id}/steps/{step_id}",
+        json={"is_done": True},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_done"] is True
+
+
+async def test_being_signed_in_does_not_grant_access_to_someone_elses_project(
+    client: AsyncClient,
+) -> None:
+    owner = await _signup(client, "owner2@university.edu")
+    intruder = await _signup(client, "intruder@university.edu")
+    created = await _make_project_as(client, owner)
+    project_id = created["project"]["id"]
+    step_id = created["project"]["steps"][0]["id"]
+
+    response = await client.patch(
+        f"/projects/{project_id}/steps/{step_id}",
+        json={"is_done": True},
+        headers={"Authorization": f"Bearer {intruder}"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_an_anonymous_project_is_not_claimed_by_whoever_signs_in_next(
+    client: AsyncClient,
+) -> None:
+    """Signed-out work stays capability-only until it is explicitly adopted."""
+    created = await _make_project_as(client, None)
+    project_id = created["project"]["id"]
+    step_id = created["project"]["steps"][0]["id"]
+    stranger = await _signup(client, "stranger@university.edu")
+
+    response = await client.patch(
+        f"/projects/{project_id}/steps/{step_id}",
+        json={"is_done": True},
+        headers={"Authorization": f"Bearer {stranger}"},
+    )
+
+    assert response.status_code == 403
+    listed = (await client.get("/projects", headers={"Authorization": f"Bearer {stranger}"})).json()
+    assert listed["meta"]["total"] == 0

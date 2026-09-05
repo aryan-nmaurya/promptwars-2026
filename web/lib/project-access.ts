@@ -44,6 +44,30 @@ export function getProjectEditToken(projectId: string): string | null {
   return safeLocalStorage()?.getItem(`${TOKEN_PREFIX}${projectId}`) ?? null;
 }
 
+/**
+ * Forget every project held on this device.
+ *
+ * Called on sign-out. The local index and the per-project capabilities are
+ * browser-scoped, not account-scoped, so without this the next person to sign
+ * in on a shared machine inherited the previous person's project list — and,
+ * because the capabilities were still present, the ability to edit them.
+ * A signed-in student loses nothing: their projects come back from the server
+ * the moment they sign in again.
+ */
+export function forgetLocalProjects(): void {
+  const storage = safeLocalStorage();
+  if (storage === null) return;
+
+  const doomed: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key !== null && key.startsWith(TOKEN_PREFIX)) doomed.push(key);
+  }
+  for (const key of doomed) storage.removeItem(key);
+  storage.removeItem(RECENT_PROJECTS_KEY);
+  notifyAccessChanged();
+}
+
 export function projectEditHeaders(editToken: string): Record<string, string> {
   return { [PROJECT_EDIT_HEADER]: editToken };
 }
