@@ -42,7 +42,9 @@ async def test_idea_set_orders_ideas_by_position(
         # Inserted out of order on purpose.
         for position in (2, 0, 1):
             idea_set.ideas.append(
-                Idea(position=position, title=f"idea-{position}", summary="s", tech_stack=["python"])
+                Idea(
+                    position=position, title=f"idea-{position}", summary="s", tech_stack=["python"]
+                )
             )
         session.add(idea_set)
         await session.commit()

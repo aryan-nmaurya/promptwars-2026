@@ -1,0 +1,27 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes: unused imports and names
+    "I",         # import sorting
+    "B",         # bugbear: likely bugs
+    "UP",        # pyupgrade
+    "SIM",       # simplifiable code
+    "C4",        # comprehensions
+    "T20",       # no print()
+    "RET",       # return consistency
+    "ARG",       # unused arguments
+    "PTH",       # prefer pathlib
+    "ERA",       # commented-out code
+]
+ignore = [
+    "E501",      # line length is handled by the formatter
+    "B008",      # FastAPI's Depends() in defaults is the documented pattern
+    "UP046",     # PEP 695 generics: Generic[T] is better tested with Pydantic v2
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["ARG001", "ARG002"]  # fixtures are injected by name, not called
+"scripts/*" = ["T20"]             # seed and migrate report progress on stdout

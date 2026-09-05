@@ -24,17 +24,19 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app import db  # noqa: E402
+from app import (
+    db,  # noqa: E402
+    deps,  # noqa: E402
+)
 from app.deps import get_gemini  # noqa: E402
-from app import deps  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.ratelimit import reset_rate_limit  # noqa: E402
 from app.routers.ideas import reset_ideas_cache  # noqa: E402
 from app.services.gemini import (  # noqa: E402
+    GeminiUnavailable,
     GeneratedIdea,
     GeneratedStep,
-    GeminiUnavailable,
 )  # noqa: E402
 
 

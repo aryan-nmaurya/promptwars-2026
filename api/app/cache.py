@@ -31,6 +31,7 @@ class TTLCache(Generic[T]):
         self._entries: dict[str, tuple[float, T]] = {}
 
     def get(self, key: str) -> T | None:
+        """Value if present and unexpired; expired entries are dropped on read."""
         entry = self._entries.get(key)
         if entry is None:
             return None
@@ -41,6 +42,7 @@ class TTLCache(Generic[T]):
         return value
 
     def set(self, key: str, value: T) -> None:
+        """Store with a fresh TTL, evicting expired entries when full."""
         if len(self._entries) >= MAX_ENTRIES:
             self._evict_expired()
         if len(self._entries) >= MAX_ENTRIES:

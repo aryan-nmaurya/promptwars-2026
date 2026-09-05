@@ -63,6 +63,8 @@ ROADMAP_SYSTEM = (
 
 
 class GeneratedIdea(BaseModel):
+    """One idea. Doubles as the response_schema Gemini validates against."""
+
     title: str
     summary: str
     problem_solved: str
@@ -71,16 +73,22 @@ class GeneratedIdea(BaseModel):
 
 
 class GeneratedIdeas(BaseModel):
+    """Top-level structured-output contract for idea generation."""
+
     ideas: list[GeneratedIdea]
 
 
 class GeneratedStep(BaseModel):
+    """One roadmap step, as returned by the model."""
+
     phase: str
     title: str
     detail: str
 
 
 class GeneratedRoadmap(BaseModel):
+    """Top-level structured-output contract for roadmap generation."""
+
     steps: list[GeneratedStep]
 
 
@@ -103,9 +111,7 @@ class GeminiUnavailable(GeminiError):
 class GeminiService:
     """Thin async wrapper over the Gemini SDK. One instance per process."""
 
-    def __init__(
-        self, api_key: str, models: list[str], timeout: float, retries: int = 1
-    ) -> None:
+    def __init__(self, api_key: str, models: list[str], timeout: float, retries: int = 1) -> None:
         self._client = genai.Client(api_key=api_key)
         self._models = models
         self._timeout = timeout
@@ -148,14 +154,19 @@ class GeminiService:
                     last = GeminiTimeoutError(f"{model} exceeded {self._timeout}s")
                     logger.warning(
                         "Gemini timeout model=%s attempt=%d/%d",
-                        model, attempt + 1, self._retries + 1,
+                        model,
+                        attempt + 1,
+                        self._retries + 1,
                     )
                     del exc
                 except Exception as exc:  # noqa: BLE001 - any failure means retry, then next model
                     last = exc
                     logger.warning(
                         "Gemini failure model=%s attempt=%d/%d error=%s",
-                        model, attempt + 1, self._retries + 1, type(exc).__name__,
+                        model,
+                        attempt + 1,
+                        self._retries + 1,
+                        type(exc).__name__,
                     )
         raise GeminiUnavailable(str(last))
 

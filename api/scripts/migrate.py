@@ -41,11 +41,12 @@ async def _add_missing_columns(conn) -> None:  # type: ignore[no-untyped-def]
     if conn.dialect.name != "postgresql":
         return
     for table, column, ddl in ADDED_COLUMNS:
-        await conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {ddl}'))
+        await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {ddl}"))
         logger.info("Ensured column %s.%s", table, column)
 
 
 async def main() -> None:
+    """Create missing tables, then apply any late-added columns."""
     logger.info("Migrating env=%s", get_settings().ENV)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

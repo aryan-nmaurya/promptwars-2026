@@ -14,7 +14,7 @@ from app.models import Idea, IdeaSet
 from app.ratelimit import RateLimiter
 from app.schemas import ErrorResponse, IdeaSetCreate, IdeaSetRead
 from app.services.fallback import fallback_ideas
-from app.services.gemini import GeneratedIdea, GeminiError
+from app.services.gemini import GeminiError, GeneratedIdea
 
 logger = logging.getLogger(__name__)
 

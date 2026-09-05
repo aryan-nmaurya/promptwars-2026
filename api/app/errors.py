@@ -26,6 +26,7 @@ def _error(status_code: int, message: str) -> JSONResponse:
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Author-written 4xx detail is safe to return; 5xx detail is logged and hidden."""
     # These are deliberate ("Item not found"), so the message is safe to return.
     message = exc.detail if isinstance(exc.detail, str) else "Request failed"
     if exc.status_code >= 500:
@@ -46,12 +47,14 @@ async def validation_exception_handler(
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Last resort: log the traceback, return a generic body outside dev and test."""
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     message = f"{type(exc).__name__}: {exc}" if get_settings().debug_errors else GENERIC_MESSAGE
     return _error(500, message)
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    """Install the handlers that guarantee every error is shaped {"error": "..."}."""
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)

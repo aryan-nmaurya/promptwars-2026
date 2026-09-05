@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Annotated
-
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from fastapi.responses import StreamingResponse
@@ -119,9 +118,7 @@ async def _stream_events(
     pieces: list[str] = []
     used_fallback = False
     try:
-        async for piece in gemini.stream_answer(
-            context=build_context(project), question=question
-        ):
+        async for piece in gemini.stream_answer(context=build_context(project), question=question):
             pieces.append(piece)
             yield f"event: chunk\ndata: {json.dumps({'text': piece})}\n\n"
     except Exception:

@@ -14,9 +14,7 @@ async def _make_project(client: AsyncClient) -> dict:
     return (await client.post("/projects", json={"idea_id": ideas["ideas"][0]["id"]})).json()
 
 
-async def test_answer_is_grounded_in_this_project(
-    client: AsyncClient, gemini: StubGemini
-) -> None:
+async def test_answer_is_grounded_in_this_project(client: AsyncClient, gemini: StubGemini) -> None:
     project = await _make_project(client)
 
     response = await client.post(
@@ -39,9 +37,7 @@ async def test_context_includes_roadmap_progress(client: AsyncClient) -> None:
     )
 
     answer = (
-        await client.post(
-            f"/projects/{project['id']}/mentor", json={"question": "What is next?"}
-        )
+        await client.post(f"/projects/{project['id']}/mentor", json={"question": "What is next?"})
     ).json()["answer"]["content"]
 
     assert "Completed steps (1)" in answer, "mentor must see what is already done"
@@ -110,9 +106,7 @@ async def test_empty_question_is_rejected(client: AsyncClient) -> None:
 async def test_overlong_question_is_rejected(client: AsyncClient) -> None:
     project = await _make_project(client)
 
-    response = await client.post(
-        f"/projects/{project['id']}/mentor", json={"question": "x" * 1001}
-    )
+    response = await client.post(f"/projects/{project['id']}/mentor", json={"question": "x" * 1001})
 
     assert response.status_code == 422
 

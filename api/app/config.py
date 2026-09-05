@@ -16,6 +16,8 @@ Env = Literal["development", "test", "preview", "production"]
 
 
 class Settings(BaseSettings):
+    """All configuration, read from the environment exactly once per cold start."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

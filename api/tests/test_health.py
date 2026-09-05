@@ -51,9 +51,7 @@ async def test_cors_preflight_allows_configured_origin(client: AsyncClient) -> N
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
 
 
-async def test_health_reports_gemini_separately_from_db(
-    client: AsyncClient, gemini
-) -> None:  # type: ignore[no-untyped-def]
+async def test_health_reports_gemini_separately_from_db(client: AsyncClient, gemini) -> None:  # type: ignore[no-untyped-def]
     """A dead AI provider must not be reported as a dead database."""
     gemini.fail = True
 

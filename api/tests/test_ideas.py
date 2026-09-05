@@ -69,7 +69,9 @@ async def test_unknown_idea_set_is_404(client: AsyncClient) -> None:
 
 async def test_rate_limit_protects_the_ai_endpoint(client: AsyncClient) -> None:
     codes = [
-        (await client.post("/ideas", json=PAYLOAD, headers={"x-forwarded-for": "5.5.5.5"})).status_code
+        (
+            await client.post("/ideas", json=PAYLOAD, headers={"x-forwarded-for": "5.5.5.5"})
+        ).status_code
         for _ in range(14)
     ]
 
@@ -87,18 +89,14 @@ async def test_identical_input_reuses_the_cached_generation(
     assert gemini.calls == ["ideas"], "second identical request must not call Gemini"
 
 
-async def test_different_input_bypasses_the_cache(
-    client: AsyncClient, gemini: StubGemini
-) -> None:
+async def test_different_input_bypasses_the_cache(client: AsyncClient, gemini: StubGemini) -> None:
     await client.post("/ideas", json=PAYLOAD)
     await client.post("/ideas", json={"interests": "climate", "skills": "rust"})
 
     assert gemini.calls == ["ideas", "ideas"]
 
 
-async def test_fallback_is_flagged_not_disguised(
-    client: AsyncClient, gemini: StubGemini
-) -> None:
+async def test_fallback_is_flagged_not_disguised(client: AsyncClient, gemini: StubGemini) -> None:
     gemini.fail = True
 
     body = (await client.post("/ideas", json=PAYLOAD)).json()

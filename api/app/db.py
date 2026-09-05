@@ -60,7 +60,9 @@ def prepare_url(raw: str) -> tuple[str, dict[str, Any]]:
     host = parts.hostname or ""
     sslmode = dropped.get("sslmode", "")
     is_local = host in _LOCAL_HOSTS
-    if sslmode in ("require", "verify-ca", "verify-full") or (not is_local and sslmode != "disable"):
+    if sslmode in ("require", "verify-ca", "verify-full") or (
+        not is_local and sslmode != "disable"
+    ):
         connect_args["ssl"] = True
 
     # Behind PgBouncer in transaction mode, server connections are shared, so
@@ -70,9 +72,7 @@ def prepare_url(raw: str) -> tuple[str, dict[str, Any]]:
     # is SQLAlchemy's documented fix. Costs one extra round trip per statement,
     # which is nothing next to a 2am outage.
     is_pooled = (
-        "-pooler" in host
-        or (parts.port in _POOLER_PORTS)
-        or dropped.get("pgbouncer") == "true"
+        "-pooler" in host or (parts.port in _POOLER_PORTS) or dropped.get("pgbouncer") == "true"
     )
     if is_pooled:
         connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"

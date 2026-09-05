@@ -22,9 +22,9 @@ from app.models import Base, Idea, IdeaSet, MentorMessage, Project, RoadmapStep 
 from app.services.fallback import (  # noqa: E402
     DEMO_CONVERSATION,
     DEMO_IDEAS,
-    DEMO_STEPS,
     DEMO_INTERESTS,
     DEMO_SKILLS,
+    DEMO_STEPS,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -40,7 +40,6 @@ SKILLS = DEMO_SKILLS
 
 # (phase, title, detail, is_done) - the first three are ticked so the demo URL
 # opens with visible progress and the mentor has completed work to reason about.
-
 
 
 async def _seed_idea_set(session) -> None:  # type: ignore[no-untyped-def]
@@ -100,6 +99,7 @@ async def _seed_project(session) -> None:  # type: ignore[no-untyped-def]
 
 
 async def main() -> None:
+    """Ensure the schema, then upsert the demo idea set and project."""
     logger.info("Seeding demo data env=%s", get_settings().ENV)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
