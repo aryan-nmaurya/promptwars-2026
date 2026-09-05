@@ -61,8 +61,12 @@ def _api_handler(
         path = request.url.path
         if path == "/repos/acme/demo":
             return _json_response(repo_metadata)
-        if path == "/repos/acme/demo/commits/main":
-            return _json_response({"sha": COMMIT_SHA})
+        if path == "/repos/acme/demo/git/ref/heads/main":
+            return _json_response(
+                {"ref": "refs/heads/main", "object": {"sha": COMMIT_SHA, "type": "commit"}}
+            )
+        if path == "/repos/acme/demo/commits/main":  # pragma: no cover
+            raise AssertionError("the commits endpoint returns megabytes of patches")
         if path == f"/repos/acme/demo/git/trees/{COMMIT_SHA}":
             assert dict(request.url.params) == {"recursive": "1"}
             return _json_response({"tree": entries, "truncated": truncated})
@@ -504,3 +508,44 @@ def test_security_code_is_ranked_because_security_is_scored() -> None:
     assert relevance_score("src/auth/session.py") > relevance_score("src/util/dates.py")
     # Still gated on a source suffix: a directory name alone proves nothing.
     assert relevance_score("api/auth/notes.txt") < relevance_score("api/auth/session.py")
+
+
+async def test_branch_tip_is_resolved_without_downloading_the_commit_diff() -> None:
+    """The commits endpoint embeds every changed file and patch.
+
+    On a repository whose default branch tip touches many files that payload
+    runs to megabytes and tripped the response cap, failing collection with a
+    502. Only the SHA is needed, so a ref lookup is used instead.
+    """
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(request.url.path)
+        path = request.url.path
+        if path == "/repos/acme/demo":
+            return _json_response({"private": False, "size": 10, "default_branch": "main"})
+        if path == "/repos/acme/demo/git/ref/heads/main":
+            return _json_response(
+                {"ref": "refs/heads/main", "object": {"sha": COMMIT_SHA, "type": "commit"}}
+            )
+        if path == "/repos/acme/demo/commits/main":
+            # A realistic oversized commit payload; requesting this is the bug.
+            return _json_response({"sha": COMMIT_SHA, "files": [{"patch": "x" * 400_000}]})
+        if path == f"/repos/acme/demo/git/trees/{COMMIT_SHA}":
+            return _json_response(
+                {"tree": [{"path": "README.md", "type": "blob", "size": 12}], "truncated": False}
+            )
+        return _json_response(
+            {"content": base64.b64encode(b"# demo").decode(), "encoding": "base64"}
+        )
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False
+    )
+    collector = GitHubEvidenceCollector(client=client, token=None)
+
+    evidence = await collector.collect("https://github.com/acme/demo")
+
+    assert evidence.commit_sha == COMMIT_SHA
+    assert "/repos/acme/demo/git/ref/heads/main" in requested
+    assert "/repos/acme/demo/commits/main" not in requested

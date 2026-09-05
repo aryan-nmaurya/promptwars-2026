@@ -286,6 +286,7 @@ class GitHubLimits:
     total_timeout_seconds: float = 8.0
     max_concurrency: int = 4
     max_metadata_response_bytes: int = 256 * 1024
+    max_ref_response_bytes: int = 64 * 1024
     max_tree_response_bytes: int = 8 * 1024 * 1024
 
     def __post_init__(self) -> None:
@@ -297,6 +298,7 @@ class GitHubLimits:
             self.max_total_bytes,
             self.max_concurrency,
             self.max_metadata_response_bytes,
+            self.max_ref_response_bytes,
             self.max_tree_response_bytes,
         )
         if any(value <= 0 for value in integer_limits):
@@ -695,12 +697,20 @@ class GitHubEvidenceCollector:
         if not isinstance(default_branch, str) or not _SAFE_REF_RE.fullmatch(default_branch):
             raise GitHubProtocolError("GitHub returned an invalid default branch")
 
-        commit = await self._request_json(
-            f"{repo_path}/commits/{quote(default_branch, safe='')}",
+        # Resolve the branch tip through the Git refs API, not /commits/{branch}.
+        # The commits endpoint returns the whole commit object including every
+        # changed file and its patch, which on a repository with one large
+        # commit runs to megabytes and blew the response cap - the only thing
+        # needed here is the SHA, and a ref is a few hundred bytes.
+        ref = await self._request_json(
+            f"{repo_path}/git/ref/heads/{quote(default_branch, safe='')}",
             deadline=deadline,
-            max_response_bytes=self.limits.max_metadata_response_bytes,
+            max_response_bytes=self.limits.max_ref_response_bytes,
         )
-        commit_sha = self._required_sha(commit.get("sha"), "default branch commit")
+        ref_object = ref.get("object")
+        if not isinstance(ref_object, dict):
+            raise GitHubProtocolError("GitHub returned an invalid branch reference")
+        commit_sha = self._required_sha(ref_object.get("sha"), "default branch commit")
         tree = await self._request_json(
             f"{repo_path}/git/trees/{commit_sha}?recursive=1",
             deadline=deadline,
