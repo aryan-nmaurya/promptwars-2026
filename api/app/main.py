@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.deps import gemini_or_none
 from app.errors import register_error_handlers
 from app.observability import RequestIdMiddleware, configure_logging
+from app.security_headers import SecurityHeadersMiddleware
 from app.routers import ideas, mentor, projects
 from app.schemas import ErrorResponse, HealthResponse
 
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     # Outermost so the id is set before anything else logs, and so the
     # response header survives every other layer.
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.add_middleware(
         CORSMiddleware,

@@ -106,3 +106,38 @@ async def test_fallback_is_flagged_not_disguised(
     # The UI must be able to tell the student this is seeded content.
     assert body["used_fallback"] is True
     assert len(body["ideas"]) == 3
+
+
+async def test_separate_sessions_get_separate_budgets(client: AsyncClient) -> None:
+    """A shared campus IP must not let one student lock out the room."""
+    shared_ip = {"x-forwarded-for": "10.1.2.3"}
+
+    for _ in range(12):
+        await client.post(
+            "/ideas", json=PAYLOAD, headers={**shared_ip, "x-session-id": "student-aaaaaaa"}
+        )
+    blocked = await client.post(
+        "/ideas", json=PAYLOAD, headers={**shared_ip, "x-session-id": "student-aaaaaaa"}
+    )
+    other_student = await client.post(
+        "/ideas", json=PAYLOAD, headers={**shared_ip, "x-session-id": "student-bbbbbbb"}
+    )
+
+    assert blocked.status_code == 429, "the heavy session must be limited"
+    assert other_student.status_code == 201, "a different session on the same IP must not be"
+
+
+async def test_rotating_session_ids_still_hits_the_ip_ceiling(client: AsyncClient) -> None:
+    """Session limiting must not become an escape hatch."""
+    codes = [
+        (
+            await client.post(
+                "/ideas",
+                json={"interests": f"topic {n}", "skills": "python"},
+                headers={"x-forwarded-for": "10.9.9.9", "x-session-id": f"rotating-{n:07d}"},
+            )
+        ).status_code
+        for n in range(65)
+    ]
+
+    assert 429 in codes, "rotating session ids must still hit the IP ceiling"

@@ -51,6 +51,31 @@ export interface RequestOptions {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+const SESSION_STORAGE_KEY = "ideaforge.session";
+const SESSION_HEADER = "x-session-id";
+
+/**
+ * Anonymous per-browser id used for rate limiting, so one student on a shared
+ * campus IP cannot exhaust everyone else's budget.
+ *
+ * A header rather than a cookie: the web app and API are on different origins,
+ * so any cookie the API set would be third-party and is blocked by Safari and
+ * being phased out in Chrome. This identifies a browser, never a person - no
+ * personal data, and it never leaves the local device except as this opaque id.
+ */
+function sessionId(): string | null {
+  if (typeof window === "undefined") return null; // Server Components: no session
+  try {
+    const existing = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (existing) return existing;
+    const created = crypto.randomUUID().replace(/-/g, "").slice(0, 32);
+    window.localStorage.setItem(SESSION_STORAGE_KEY, created);
+    return created;
+  } catch {
+    return null; // private mode or blocked storage: fall back to IP limiting
+  }
+}
+
 /**
  * The API origin. `NEXT_PUBLIC_*` is compiled into the browser bundle, so this
  * must never hold a secret - it is a public URL and nothing else.
@@ -109,6 +134,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     cache = "no-store",
   } = options;
   const url = buildUrl(path, query);
+  const session = sessionId();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -123,6 +149,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
       headers: {
         Accept: "application/json",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...(session === null ? {} : { [SESSION_HEADER]: session }),
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
