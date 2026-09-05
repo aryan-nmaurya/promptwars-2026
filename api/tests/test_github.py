@@ -15,6 +15,7 @@ from app.services.github import (
     GitHubLimits,
     GitHubProtocolError,
     GitHubRateLimited,
+    GitHubRepositoryMoved,
     GitHubRepositoryRejected,
     GitHubTimeout,
     InvalidGitHubURL,
@@ -341,3 +342,40 @@ def test_path_filters_and_keyword_scoring_are_deterministic() -> None:
     assert relevance_score("src/reminder/service.py", planned) > relevance_score(
         "src/unrelated/helpers.py", planned
     )
+
+
+async def test_a_renamed_repository_is_a_client_error_not_a_server_fault() -> None:
+    """Renaming a repo is common; the student must be told, not shown a 5xx."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(301, headers={"location": "https://api.github.com/repos/new/name"})
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False
+    )
+    collector = GitHubEvidenceCollector(client=client, token=None)
+
+    with pytest.raises(GitHubRepositoryMoved) as caught:
+        await collector.collect("https://github.com/old/name")
+
+    assert "renamed or transferred" in str(caught.value)
+
+
+@pytest.mark.parametrize("token", [None, "server-token"])
+async def test_rate_limit_errors_report_whether_a_server_token_was_used(
+    token: str | None,
+) -> None:
+    """A shared 60/hour allowance and an exhausted 5000 need different responses."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, headers={"x-ratelimit-remaining": "0"}, json={})
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False
+    )
+    collector = GitHubEvidenceCollector(client=client, token=token)
+
+    with pytest.raises(GitHubRateLimited) as caught:
+        await collector.collect("https://github.com/owner/repo")
+
+    assert caught.value.authenticated is (token is not None)

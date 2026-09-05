@@ -28,6 +28,7 @@ from app.services.github import (
     GitHubNotFound,
     GitHubProtocolError,
     GitHubRateLimited,
+    GitHubRepositoryMoved,
     GitHubRepositoryRejected,
     GitHubTimeout,
     InvalidGitHubURL,
@@ -91,9 +92,20 @@ async def evaluate_repository(
         raise HTTPException(status_code=404, detail="Public GitHub repository not found") from exc
     except GitHubRateLimited as exc:
         headers = {"Retry-After": exc.retry_after} if exc.retry_after else None
+        if not exc.authenticated:
+            # Without GITHUB_TOKEN the whole instance shares 60 requests an
+            # hour, which one collection can nearly exhaust on its own. That is
+            # an operator problem, so say so in the logs instead of leaving the
+            # student to retry against a limit that will not recover for them.
+            logger.warning(
+                "GitHub rate limit reached without a server token; set GITHUB_TOKEN "
+                "to raise the allowance from 60 to 5000 requests per hour"
+            )
         raise HTTPException(
             status_code=429, detail="GitHub rate limit reached; try again later", headers=headers
         ) from exc
+    except GitHubRepositoryMoved as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except GitHubRepositoryRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except GitHubTimeout as exc:

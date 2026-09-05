@@ -206,9 +206,17 @@ class GitHubNotFound(GitHubError):
 class GitHubRateLimited(GitHubError):
     """GitHub refused the request because its API limit was reached."""
 
-    def __init__(self, message: str, *, retry_after: str | None = None) -> None:
+    def __init__(
+        self, message: str, *, retry_after: str | None = None, authenticated: bool = False
+    ) -> None:
         super().__init__(message)
         self.retry_after = retry_after
+        # One collection spends up to 28 requests, and the unauthenticated
+        # allowance is 60 per hour per originating IP - shared by every caller
+        # on a serverless instance. Whether a server token was configured is
+        # therefore the difference between a transient blip and a standing
+        # misconfiguration, and the caller has to be able to tell them apart.
+        self.authenticated = authenticated
 
 
 class GitHubTimeout(GitHubError):
@@ -217,6 +225,10 @@ class GitHubTimeout(GitHubError):
 
 class GitHubProtocolError(GitHubError):
     """GitHub returned an unexpected or unsafe response."""
+
+
+class GitHubRepositoryMoved(GitHubError):
+    """The repository answered with a redirect, so it was renamed or transferred."""
 
 
 class GitHubRepositoryRejected(GitHubError):
@@ -734,8 +746,7 @@ class GitHubEvidenceCollector:
             raise GitHubProtocolError("GitHub returned an unexpected JSON response")
         return payload
 
-    @staticmethod
-    def _raise_for_status(response: httpx.Response) -> None:
+    def _raise_for_status(self, response: httpx.Response) -> None:
         status = response.status_code
         if status == 404:
             raise GitHubNotFound("Public GitHub repository or object was not found")
@@ -746,9 +757,21 @@ class GitHubEvidenceCollector:
             reset_at = response.headers.get("x-ratelimit-reset")
             if retry_after is None and reset_at and reset_at.isdigit():
                 retry_after = str(max(1, int(reset_at) - int(time.time())))
-            raise GitHubRateLimited("GitHub API rate limit reached", retry_after=retry_after)
+            raise GitHubRateLimited(
+                "GitHub API rate limit reached",
+                retry_after=retry_after,
+                authenticated=self._token is not None,
+            )
         if 300 <= status < 400:
-            raise GitHubProtocolError("GitHub API redirects are not allowed")
+            # Requests are built from owner/repo against the hard-coded API
+            # host, so a redirect here means GitHub moved the repository rather
+            # than that the URL was sloppy. Redirects are still never followed
+            # - that is the SSRF guarantee - but this is the student's mistake
+            # to fix, not a server fault, so it must not surface as a 5xx.
+            raise GitHubRepositoryMoved(
+                "This repository redirects, which usually means it was renamed or "
+                "transferred. Open it on GitHub and use the URL it lands on."
+            )
         if status < 200 or status >= 300:
             raise GitHubError(f"GitHub API request failed with status {status}")
 

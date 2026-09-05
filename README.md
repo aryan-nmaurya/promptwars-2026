@@ -181,7 +181,7 @@ npm run dev
 | --- | --- | --- |
 | `DATABASE_URL` | yes | Paste the provider's string verbatim. Scheme is rewritten to `postgresql+asyncpg://`; `sslmode`, `channel_binding` and `pgbouncer` are stripped and translated. **Use the pooled endpoint** (`-pooler` host, or port 6543). |
 | `GOOGLE_API_KEY` | yes for AI | Google AI Studio key. Server-side only. Without it, AI routes return 503 rather than 500. |
-| `GITHUB_TOKEN` | no | Optional server-side token for a higher GitHub API allowance. Public repositories work without it; never expose it to the web app. |
+| `GITHUB_TOKEN` | in practice yes | Server-side, read-only. One evaluation spends up to 28 API requests; unauthenticated GitHub allows 60/hour **per IP, shared by everyone on the instance**, so roughly two evaluations an hour in total. A token raises that to 5000/hour. Never expose it to the web app. |
 | `ALLOWED_ORIGINS` | yes in prod | Comma-separated exact origins. Never `*`. |
 | `ENV` | no | `development` / `test` / `preview` / `production`. Outside dev+test, 500s are stripped to a generic message. |
 | `GEMINI_MODELS` | no | Comma-separated, tried in order. Default `gemini-3.6-flash,gemini-3.5-flash`. |

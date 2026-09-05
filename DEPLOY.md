@@ -46,7 +46,7 @@ Add under **Settings → Environment Variables**. Tick **Production**,
 | `ALLOWED_ORIGINS` | `https://promptwars-web.vercel.app` | Fill in after Project 2 exists — see the second pass below. |
 | `ENV` | `production` | Use `preview` on the Preview environment if you want richer errors there. |
 | `GOOGLE_API_KEY` | *your key* | Required for AI features. Production + Preview only, stored as a Secret. **Never add this to the web project.** |
-| `GITHUB_TOKEN` | *optional* | Raises the API allowance for public-repository evaluation. Use a fine-grained/read-only token and never add it to the web project. |
+| `GITHUB_TOKEN` | *set this before demoing* | One evaluation costs up to 28 GitHub API requests. Unauthenticated, the whole instance shares 60/hour, so the third evaluation in an hour returns 429. A fine-grained read-only token (no scopes needed for public repos) raises this to 5000/hour. Never add it to the web project. |
 | `GEMINI_MODELS` | *optional* | Comma-separated, tried in order. Defaults to five verified models. Free-tier quota is 20/day **per model**, so more models means more daily headroom. |
 | `GEMINI_TIMEOUT_SECONDS` | *optional* | Per-model budget, default 20. |
 | `GEMINI_BUDGET_SECONDS` | *optional* | Ceiling across the whole chain, default 45, under `maxDuration` 60. |
