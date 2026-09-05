@@ -490,3 +490,17 @@ def test_derived_limits_never_contradict_a_lowered_ceiling() -> None:
     limits = GitHubLimits(max_file_bytes=16, max_files=2)
     assert limits.effective_min_file_bytes == 16
     assert limits.effective_max_test_files == 2
+
+
+def test_security_code_is_ranked_because_security_is_scored() -> None:
+    """The evaluator grades security, so it has to be shown the code that implements it.
+
+    Access control and rate limiting previously scored at the floor, below
+    ordinary infrastructure, and were never analyzed - so the model graded a
+    repository's security having seen none of it.
+    """
+
+    assert relevance_score("api/app/project_access.py") > relevance_score("api/app/db.py")
+    assert relevance_score("src/auth/session.py") > relevance_score("src/util/dates.py")
+    # Still gated on a source suffix: a directory name alone proves nothing.
+    assert relevance_score("api/auth/notes.txt") < relevance_score("api/auth/session.py")

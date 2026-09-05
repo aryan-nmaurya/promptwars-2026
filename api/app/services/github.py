@@ -553,6 +553,31 @@ def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
     # implementation they exercise.
     if is_test:
         score += 40
+    # Security is one of the six scored categories, but nothing else in this
+    # function looks for it: access control, rate limiting and input handling
+    # scored near the bottom and were never analyzed, so the model graded a
+    # repository's security without seeing any of the code that implements it.
+    if implements and (
+        parts & {"auth", "security", "middleware", "guards", "permissions"}
+        or any(
+            word in name
+            for word in (
+                "auth",
+                "credential",
+                "crypto",
+                "permission",
+                "ratelimit",
+                "sanitiz",
+                "secret",
+                "security",
+                "session",
+                "token",
+                "validator",
+            )
+        )
+        or "access" in name
+    ):
+        score += 55
     if (
         name in _DEPLOYMENT_FILES
         or ".github" in parts
