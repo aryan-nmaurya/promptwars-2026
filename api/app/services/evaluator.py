@@ -16,7 +16,7 @@ from app.schemas import (
     RepositorySnapshot,
 )
 from app.services.gemini import GeminiService, GeneratedPlannedItem
-from app.services.github import RepositoryEvidence
+from app.services.github import RepositoryEvidence, is_security_relevant_path
 
 EVALUATOR_VERSION = "2026-09-05.1"
 
@@ -27,6 +27,7 @@ class EvaluatedResult(BaseModel):
     repository: RepositorySnapshot
     overall_score: int
     scores: EvaluationScores
+    unassessed_categories: list[str]
     planned_vs_built: list[PlannedVsBuiltItem]
     top_fixes: list[EvaluationFix]
     coverage: EvaluationCoverage
@@ -191,18 +192,45 @@ def _feature_score(items: list[PlannedVsBuiltItem]) -> int:
     return round(100 * sum(values[item.status] for item in items) / len(items))
 
 
-def _observable_caps(
-    evidence: RepositoryEvidence, testing: int, documentation: int, security: int
-) -> tuple[int, int, int]:
-    paths = [item.path.lower() for item in evidence.files]
-    has_tests = any(_is_test_path(path) for path in paths)
-    has_docs = any(PurePosixPath(path).name.startswith("readme") for path in paths)
-    has_redaction = any("[REDACTED" in item.content for item in evidence.files)
-    return (
-        testing if has_tests else min(testing, 20),
-        documentation if has_docs else min(documentation, 20),
-        min(security, 40) if has_redaction else security,
-    )
+#: Weight of each category in the overall score. Weights are renormalised over
+#: whichever categories the evidence could actually support, so a repository is
+#: never penalised for a category this analyzer could not see.
+CATEGORY_WEIGHTS: dict[str, float] = {
+    "feature_completion": 0.40,
+    "architecture": 0.15,
+    "code_quality": 0.15,
+    "testing": 0.10,
+    "documentation": 0.10,
+    "security": 0.10,
+}
+
+
+def assessable_categories(evidence: RepositoryEvidence) -> dict[str, bool]:
+    """Return which categories the analyzed files can actually support.
+
+    Scoring a category from evidence that says nothing about it is a guess
+    wearing a measurement's clothes. `feature_completion` is always assessable
+    because it is computed from the frozen plan, not from the repository.
+    """
+
+    paths = [item.path for item in evidence.files]
+    has_implementation = any(_is_implementation_path(path) for path in paths)
+    return {
+        "feature_completion": True,
+        "architecture": has_implementation,
+        "code_quality": has_implementation,
+        "testing": any(_is_test_path(path) for path in paths),
+        "documentation": any(
+            PurePosixPath(path.lower()).name.startswith("readme") for path in paths
+        ),
+        # Either a control was analyzed, or this collector actually replaced a
+        # credential in the source. The second is a fact recorded during
+        # redaction, not a search for the marker in the finished text: a file
+        # that merely mentions the marker - as any security tool's own source
+        # does - is not evidence of anything.
+        "security": any(is_security_relevant_path(path) for path in paths)
+        or any(item.redactions > 0 for item in evidence.files),
+    }
 
 
 async def evaluate_project_repository(
@@ -227,34 +255,41 @@ async def evaluate_project_repository(
         for index, feature in enumerate(features)
     ]
 
-    feature_completion = _feature_score(items)
-    testing, documentation, security = _observable_caps(
-        evidence,
-        generated.scores.testing,
-        generated.scores.documentation,
-        generated.scores.security,
-    )
-    scores = EvaluationScores(
-        feature_completion=feature_completion,
-        architecture=generated.scores.architecture,
-        code_quality=generated.scores.code_quality,
-        testing=testing,
-        documentation=documentation,
-        security=security,
-    )
+    assessable = assessable_categories(evidence)
+    proposed = {
+        "feature_completion": _feature_score(items),
+        "architecture": generated.scores.architecture,
+        "code_quality": generated.scores.code_quality,
+        "testing": generated.scores.testing,
+        "documentation": generated.scores.documentation,
+        "security": generated.scores.security,
+    }
+    measured = {name: value for name, value in proposed.items() if assessable[name]}
+    unassessed = [name for name in CATEGORY_WEIGHTS if not assessable[name]]
+    scores = EvaluationScores(**{name: measured.get(name) for name in proposed})
+
+    # Renormalise over what was measured. Without this a repository with no
+    # tests would lose a tenth of its total to a category nobody scored, which
+    # is a penalty disguised as an average.
+    weight_total = sum(CATEGORY_WEIGHTS[name] for name in measured)
     overall = round(
-        scores.feature_completion * 0.40
-        + scores.architecture * 0.15
-        + scores.code_quality * 0.15
-        + scores.testing * 0.10
-        + scores.documentation * 0.10
-        + scores.security * 0.10
+        sum(CATEGORY_WEIGHTS[name] * value for name, value in measured.items()) / weight_total
+    )
+    unassessed_note = (
+        [
+            "Not scored, because the analyzed files contained no evidence for it: "
+            + ", ".join(name.replace("_", " ") for name in unassessed)
+            + "."
+        ]
+        if unassessed
+        else []
     )
     limitations = list(
         dict.fromkeys(
             [
                 *evidence.limitations,
                 "Only selected text files were analyzed; runtime behavior was not verified.",
+                *unassessed_note,
             ]
         )
     )[:10]
@@ -268,6 +303,7 @@ async def evaluate_project_repository(
         ),
         overall_score=overall,
         scores=scores,
+        unassessed_categories=unassessed,
         planned_vs_built=items,
         top_fixes=[EvaluationFix.model_validate(item) for item in generated.top_fixes[:3]],
         coverage=EvaluationCoverage(

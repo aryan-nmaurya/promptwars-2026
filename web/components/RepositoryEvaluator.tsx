@@ -130,9 +130,30 @@ function ScoreSummary({ evaluation }: { evaluation: Evaluation }) {
         <h3 id="score-breakdown" className="text-sm font-semibold text-ink">
           Score breakdown
         </h3>
+        {evaluation.unassessed_categories.length > 0 ? (
+          <p className="mt-1 text-xs text-ink-muted">
+            The overall score is weighted across the assessed categories only.
+          </p>
+        ) : null}
         <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {SCORE_LABELS.map(({ key, label }) => {
-            const value = clampScore(evaluation.scores[key]);
+            const raw = evaluation.scores[key];
+            // A category with no supporting evidence is reported as null, not
+            // zero. Showing "0/100" would read as a failing grade for something
+            // that was never measured, so it says so instead and draws no bar.
+            if (raw === null || raw === undefined) {
+              return (
+                <div
+                  key={key}
+                  className="rounded-md border border-dashed border-control-border bg-bg p-3"
+                >
+                  <dt className="text-xs text-ink-muted">{label}</dt>
+                  <dd className="mt-1 text-sm font-medium text-ink-muted">Not assessed</dd>
+                  <p className="mt-1 text-xs text-ink-muted">No evidence in the analyzed files</p>
+                </div>
+              );
+            }
+            const value = clampScore(raw);
             return (
               <div key={key} className="rounded-md border border-surface-border bg-bg p-3">
                 <dt className="text-xs text-ink-muted">{label}</dt>

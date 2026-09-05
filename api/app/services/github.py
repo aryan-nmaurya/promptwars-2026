@@ -347,6 +347,12 @@ class EvidenceFile:
     size_bytes: int
     relevance_score: int
     content: str
+    #: How many values this collector actually replaced. Recorded here because
+    #: only the code performing the redaction knows it happened: searching the
+    #: finished content for the marker cannot tell a redacted secret apart from
+    #: a file that merely mentions the marker, and a security tool's own source
+    #: mentions it constantly.
+    redactions: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -557,26 +563,7 @@ def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
     # function looks for it: access control, rate limiting and input handling
     # scored near the bottom and were never analyzed, so the model graded a
     # repository's security without seeing any of the code that implements it.
-    if implements and (
-        parts & {"auth", "security", "middleware", "guards", "permissions"}
-        or any(
-            word in name
-            for word in (
-                "auth",
-                "credential",
-                "crypto",
-                "permission",
-                "ratelimit",
-                "sanitiz",
-                "secret",
-                "security",
-                "session",
-                "token",
-                "validator",
-            )
-        )
-        or "access" in name
-    ):
+    if is_security_relevant_path(lowered):
         score += 55
     if (
         name in _DEPLOYMENT_FILES
@@ -596,6 +583,43 @@ def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
         # crowd out the code it covers.
         score += bonus // 2 if is_test else bonus
     return score
+
+
+def count_redaction_markers(content: str) -> int:
+    """Count redaction markers in `content`, whoever put them there."""
+
+    return content.count("[REDACTED")
+
+
+def is_security_relevant_path(path: str) -> bool:
+    """Return whether a path plausibly implements a security control.
+
+    Shared by relevance scoring and by category assessment so that "worth
+    reading" and "enough to grade security on" can never drift apart.
+    """
+
+    pure = PurePosixPath(path.lower())
+    if pure.suffix not in _SOURCE_SUFFIXES:
+        return False
+    name = pure.name
+    if set(pure.parts) & {"auth", "security", "middleware", "guards", "permissions"}:
+        return True
+    return "access" in name or any(
+        word in name
+        for word in (
+            "auth",
+            "credential",
+            "crypto",
+            "permission",
+            "ratelimit",
+            "sanitiz",
+            "secret",
+            "security",
+            "session",
+            "token",
+            "validator",
+        )
+    )
 
 
 def redact_inline_secrets(content: str) -> str:
@@ -846,12 +870,14 @@ class GitHubEvidenceCollector:
             content = raw.decode("utf-8-sig")
         except UnicodeDecodeError:
             return None
+        redacted = redact_inline_secrets(content)
         return EvidenceFile(
             path=candidate.path,
             sha=candidate.sha,
             size_bytes=len(raw),
             relevance_score=candidate.score,
-            content=redact_inline_secrets(content),
+            content=redacted,
+            redactions=count_redaction_markers(redacted) - count_redaction_markers(content),
         )
 
     async def _request_json(

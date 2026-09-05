@@ -144,12 +144,21 @@ class RepositorySnapshot(ApiModel):
 
 
 class EvaluationScores(ApiModel):
+    """Category scores, where `null` means the evidence could not support one.
+
+    A number here is a measurement. When the analyzed files contain nothing
+    that speaks to a category - no tests, no README, no security control - the
+    honest answer is to report nothing rather than a guess, and to leave that
+    category out of the weighted total instead of scoring it zero.
+    """
+
+    #: Always assessable: it is derived from the frozen plan, which always exists.
     feature_completion: int = Field(ge=0, le=100)
-    architecture: int = Field(ge=0, le=100)
-    code_quality: int = Field(ge=0, le=100)
-    testing: int = Field(ge=0, le=100)
-    documentation: int = Field(ge=0, le=100)
-    security: int = Field(ge=0, le=100)
+    architecture: int | None = Field(default=None, ge=0, le=100)
+    code_quality: int | None = Field(default=None, ge=0, le=100)
+    testing: int | None = Field(default=None, ge=0, le=100)
+    documentation: int | None = Field(default=None, ge=0, le=100)
+    security: int | None = Field(default=None, ge=0, le=100)
 
 
 class EvidenceReference(ApiModel):
@@ -190,8 +199,12 @@ class EvaluationCoverage(ApiModel):
 class EvaluationRead(ApiModel):
     id: str
     repository: RepositorySnapshot
+    #: Weighted across the assessed categories only, so an unassessed category
+    #: neither drags the total down nor is quietly counted as if it passed.
     overall_score: int = Field(ge=0, le=100)
     scores: EvaluationScores
+    #: Category names reported as `null` above, so the UI can say why.
+    unassessed_categories: list[str] = Field(default_factory=list, max_length=6)
     planned_vs_built: list[PlannedVsBuiltItem] = Field(min_length=1, max_length=12)
     top_fixes: list[EvaluationFix] = Field(max_length=3)
     coverage: EvaluationCoverage

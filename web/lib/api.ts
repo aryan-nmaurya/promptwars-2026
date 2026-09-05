@@ -360,13 +360,18 @@ export interface EvaluationFix {
   how: string;
 }
 
+/**
+ * `null` means the analyzed files held no evidence for that category, so it was
+ * deliberately not scored and is excluded from `overall_score`. Render it as
+ * "not assessed" - never as a zero, and never as a missing bar.
+ */
 export interface EvaluationScores {
   feature_completion: number;
-  architecture: number;
-  code_quality: number;
-  testing: number;
-  documentation: number;
-  security: number;
+  architecture: number | null;
+  code_quality: number | null;
+  testing: number | null;
+  documentation: number | null;
+  security: number | null;
 }
 
 export interface EvaluationRepository {
@@ -387,8 +392,11 @@ export interface EvaluationCoverage {
 export interface Evaluation {
   id: string;
   repository: EvaluationRepository;
+  /** Weighted across the assessed categories only. */
   overall_score: number;
   scores: EvaluationScores;
+  /** Names of the categories reported as `null` above. */
+  unassessed_categories: string[];
   planned_vs_built: PlannedVsBuiltItem[];
   top_fixes: EvaluationFix[];
   coverage: EvaluationCoverage;
