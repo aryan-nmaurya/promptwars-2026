@@ -29,3 +29,7 @@ export { Textarea } from "./Textarea";
 export type { TextareaProps } from "./Textarea";
 
 export { Markdown } from "./Markdown";
+
+export { Chip } from "./Chip";
+export type { ChipProps } from "./Chip";
+

@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-busy={loading || undefined}
       className={[
         "inline-flex items-center justify-center rounded-md font-medium",
-        "transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "transition-[background-color,border-color,transform,opacity] duration-140 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60",
         VARIANTS[variant],
         SIZES[size],
         className,

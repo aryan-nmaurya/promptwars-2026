@@ -70,76 +70,84 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
       {project.used_fallback ? <FallbackBanner what="this roadmap" /> : null}
 
-      <RepositoryEvaluator
-        projectId={project.id}
-        initialEvaluation={project.latest_evaluation ?? null}
-      />
+      <div id="evaluation">
+        <RepositoryEvaluator
+          projectId={project.id}
+          initialEvaluation={project.latest_evaluation ?? null}
+        />
+      </div>
 
-      <Card
-        title="Scope contract"
-        as="h2"
-        description="The frozen plan your repository evaluation is measured against."
-      >
-        <div className="flex flex-col gap-5">
-          <div>
-            <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
-              Problem to solve
-            </h3>
-            <p className="mt-1 text-sm text-ink">{project.problem_solved}</p>
-          </div>
-
-          <div>
-            <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
-              Core deliverables
-            </h3>
-            {project.core_features.length > 0 ? (
-              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-                {project.core_features.map((feature) => (
-                  <li
-                    key={feature}
-                    className="flex items-start gap-2 rounded-md border border-surface-border bg-bg p-3 text-sm text-ink"
-                  >
-                    <span aria-hidden="true" className="text-amber">
-                      ✓
-                    </span>
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-1 text-sm text-ink-muted">No core deliverables recorded.</p>
-            )}
-          </div>
-
-          {project.stretch_goals.length > 0 ? (
+      <div id="overview">
+        <Card
+          title="Scope contract"
+          as="h2"
+          description="The frozen plan your repository evaluation is measured against."
+        >
+          <div className="flex flex-col gap-5">
             <div>
               <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
-                Stretch goals · only after the core works
+                Problem to solve
               </h3>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {project.stretch_goals.map((goal) => (
-                  <li
-                    key={goal}
-                    className="rounded-full border border-surface-border bg-surface-2 px-3 py-1 text-xs text-ink-muted"
-                  >
-                    {goal}
-                  </li>
-                ))}
-              </ul>
+              <p className="mt-1 text-sm text-ink">{project.problem_solved}</p>
             </div>
-          ) : null}
-        </div>
-      </Card>
 
-      <Card
-        title="Your roadmap"
-        as="h2"
-        description="A phased build plan with progress saved for the owner."
-      >
-        <RoadmapChecklist projectId={project.id} initialSteps={project.steps} />
-      </Card>
+            <div>
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+                Core deliverables
+              </h3>
+              {project.core_features.length > 0 ? (
+                <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {project.core_features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2 rounded-md border border-surface-border bg-bg p-3 text-sm text-ink"
+                    >
+                      <span aria-hidden="true" className="text-amber">
+                        ✓
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-ink-muted">No core deliverables recorded.</p>
+              )}
+            </div>
 
-      <OwnerMentorCard projectId={project.id} />
+            {project.stretch_goals.length > 0 ? (
+              <div>
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+                  Stretch goals · only after the core works
+                </h3>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {project.stretch_goals.map((goal) => (
+                    <li
+                      key={goal}
+                      className="rounded-full border border-surface-border bg-surface-2 px-3 py-1 text-xs text-ink-muted"
+                    >
+                      {goal}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+
+      <div id="roadmap">
+        <Card
+          title="Your roadmap"
+          as="h2"
+          description="A phased build plan with progress saved for the owner."
+        >
+          <RoadmapChecklist projectId={project.id} initialSteps={project.steps} />
+        </Card>
+      </div>
+
+      <div id="mentor">
+        <OwnerMentorCard projectId={project.id} />
+      </div>
     </div>
   );
 }
