@@ -11,6 +11,7 @@ from app.services.gemini import (
     GeminiParseError,
     GeminiService,
     GeminiUnavailable,
+    GeneratedEvaluation,
     GeneratedIdeas,
     GeneratedRoadmap,
 )
@@ -289,3 +290,47 @@ async def test_budget_stops_the_chain_before_the_function_times_out() -> None:
         await service.generate_ideas("healthcare", "python")
 
     assert len(fake.attempts) < 3, "must stop early rather than try every model"
+
+
+async def test_repository_quality_is_scored_independently_of_plan_match() -> None:
+    """A mismatched plan must not zero the categories it says nothing about.
+
+    Against production, a project whose plan the repository did not implement
+    came back with every category at zero - architecture, testing and
+    documentation included - while the same repository and the same evidence
+    scored 88 to 92 under a matching plan. Only planned_vs_built measures plan
+    alignment; the other five judge the supplied code on its own merits.
+    """
+
+    payload = GeneratedEvaluation.model_validate(
+        {
+            "planned_vs_built": [
+                {
+                    "planned_item": "Some feature",
+                    "status": "not_found",
+                    "confidence": 1.0,
+                    "evidence": [],
+                    "gap": "Nothing in the supplied files implements this.",
+                }
+            ],
+            "scores": {
+                "architecture": 80,
+                "code_quality": 80,
+                "testing": 80,
+                "documentation": 80,
+                "security": 80,
+            },
+            "top_fixes": [],
+        }
+    )
+    service, fake = _service(set(), payload)
+
+    await service.evaluate_repository(
+        plan="1. Some feature",
+        repository_evidence="FILE: app/main.py\n---\nprint('hi')\n--- END FILE",
+        deterministic_summary="Files analyzed: 1",
+    )
+
+    prompt = fake.prompts[0].lower()
+    assert "independently of how well it matches the plan" in prompt
+    assert "never lower these five because features are missing" in prompt

@@ -312,9 +312,15 @@ class GeminiService:
             f"{wrap_untrusted('Deterministic repository summary:', sanitize_text(deterministic_summary, max_length=5000))}\n\n"
             f"{wrap_untrusted('Commit-pinned repository evidence:', sanitize_text(repository_evidence, max_length=140000))}\n\n"
             "Return one planned_vs_built row for every numbered core feature in the plan, "
-            "in the same order. Cite only exact supplied file paths. Score architecture, "
-            "code quality, testing, documentation, and security conservatively, then give "
-            "at most three specific high-impact fixes."
+            "in the same order. Cite only exact supplied file paths.\n"
+            "Only the planned_vs_built rows measure whether the repository matches the "
+            "plan. Score architecture, code quality, testing, documentation and security "
+            "on the merits of the supplied code itself, conservatively, and independently "
+            "of how well it matches the plan: a well-built repository that implements a "
+            "different project still has the architecture, tests and documentation that "
+            "the supplied files show. Never lower these five because features are "
+            "missing - the planned_vs_built rows already carry that.\n"
+            "Then give at most three specific high-impact fixes."
         )
         response = await self._call(
             prompt=prompt,
