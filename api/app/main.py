@@ -56,7 +56,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="IdeaForge API",
+        title="ProjectPilot API",
         version="0.2.0",
         description=(
             "Generate, scope, plan, mentor, and evaluate final-year projects "

@@ -4,6 +4,14 @@ import { useMemo, useSyncExternalStore } from "react";
 
 import type { Project } from "./api";
 
+/**
+ * The `ideaforge.` prefix predates the rename to ProjectPilot and is kept
+ * deliberately. These keys are the only copy of a project's write capability
+ * that exists — the raw token is returned once at creation and never again —
+ * so renaming the namespace would not "clean up" anything, it would silently
+ * orphan every project every existing user owns. Rename it only alongside a
+ * migration that copies the old keys forward.
+ */
 const TOKEN_PREFIX = "ideaforge.project.edit-token.";
 const RECENT_PROJECTS_KEY = "ideaforge.recent-projects";
 const ACCESS_EVENT = "ideaforge:project-access-changed";

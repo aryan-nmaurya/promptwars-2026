@@ -14,10 +14,10 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
             className="group flex items-center gap-2 rounded font-display text-lg font-bold tracking-tight text-ink"
           >
             <span className="flex h-7 w-7 items-center justify-center rounded-md border border-amber/30 bg-amber/10 font-mono text-xs font-bold text-amber">
-              IF
+              PP
             </span>
             <span>
-              Idea<span className="text-amber">Forge</span>
+              Project<span className="text-amber">Pilot</span>
             </span>
           </Link>
 
@@ -45,7 +45,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       <footer className="border-t border-surface-border bg-surface/50">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <p className="font-mono text-xs text-ink-muted">
-            IdeaForge — plan-aware project coach for final-year students. Powered by Gemini.
+            ProjectPilot — plan-aware project coach for final-year students. Powered by Gemini.
           </p>
           <div className="flex items-center gap-4 text-xs text-ink-muted">
             <Link href="/projects" className="underline-offset-4 hover:text-ink hover:underline">

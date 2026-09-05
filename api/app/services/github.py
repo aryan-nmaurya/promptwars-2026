@@ -893,7 +893,7 @@ class GitHubEvidenceCollector:
         timeout_seconds = min(self.limits.request_timeout_seconds, remaining)
         headers = {
             "Accept": "application/vnd.github+json",
-            "User-Agent": "IdeaForge-evidence-collector/1",
+            "User-Agent": "ProjectPilot-evidence-collector/1",
             "X-GitHub-Api-Version": "2022-11-28",
         }
         if self._token:

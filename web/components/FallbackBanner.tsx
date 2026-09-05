@@ -17,7 +17,7 @@ export function FallbackBanner({ what }: { what: string }) {
           Fallback mode
         </span>
         <br />
-        Gemini was unreachable, so {what} came from IdeaForge&rsquo;s seeded example rather
+        Gemini was unreachable, so {what} came from ProjectPilot&rsquo;s seeded example rather
         than a live generation.
       </p>
     </div>

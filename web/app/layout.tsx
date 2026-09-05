@@ -35,18 +35,18 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL("https://promptwars-web.vercel.app"),
   title: {
-    default: "IdeaForge — AI project generator and mentor",
-    template: "%s | IdeaForge",
+    default: "ProjectPilot — AI project generator and mentor",
+    template: "%s | ProjectPilot",
   },
   description: DESCRIPTION,
-  applicationName: "IdeaForge",
+  applicationName: "ProjectPilot",
   openGraph: {
-    title: "IdeaForge — AI project generator and mentor",
+    title: "ProjectPilot — AI project generator and mentor",
     description: DESCRIPTION,
     type: "website",
-    siteName: "IdeaForge",
+    siteName: "ProjectPilot",
   },
-  twitter: { card: "summary", title: "IdeaForge", description: DESCRIPTION },
+  twitter: { card: "summary", title: "ProjectPilot", description: DESCRIPTION },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     apple: [{ url: "/icon.svg" }],

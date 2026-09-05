@@ -1,12 +1,12 @@
-# IdeaForge
+# ProjectPilot
 
 **AI-powered project generator and mentor for final-year students.**
 
 A student types what they're interested in and what they can already build with.
-IdeaForge returns three scoped project ideas with feasibility scores, turns the
+ProjectPilot returns three scoped project ideas with feasibility scores, turns the
 chosen one into a phased roadmap they tick off, and gives them an AI mentor that
 knows that exact project — its title, stack, roadmap, and what's already done.
-When they have code, IdeaForge compares a bounded set of files from a public
+When they have code, ProjectPilot compares a bounded set of files from a public
 GitHub repository with the frozen scope and produces an evidence-backed
 **Planned vs Built** report with the three highest-value fixes.
 
@@ -138,7 +138,7 @@ canonical `https://github.com/owner/repository` URLs, talks only to the hard-cod
 GitHub API origin, rejects private or oversized repositories, caps tree entries,
 file count, file size, total bytes and collection time, skips binary/vendor/lock/
 secret paths, redacts secret-like values, and pins evidence to one commit.
-Repository text is fenced as untrusted data in the Gemini prompt. IdeaForge never
+Repository text is fenced as untrusted data in the Gemini prompt. ProjectPilot never
 clones, installs, builds, or executes submitted code.
 
 **Timeouts.** Idea generation runs ~6s from Vercel; roadmap generation is

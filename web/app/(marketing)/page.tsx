@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "IdeaForge — Plan-Aware Project Coach for Final-Year Students",
+  title: "ProjectPilot — Plan-Aware Project Coach for Final-Year Students",
   description:
-    "IdeaForge freezes what you promised to build, reads your repository, and shows exactly what's implemented, partial, and missing — citing the file that proves it.",
+    "ProjectPilot freezes what you promised to build, reads your repository, and shows exactly what's implemented, partial, and missing — citing the file that proves it.",
 };
 
 const MOCK_ROWS = [
@@ -54,7 +54,7 @@ export default function LandingPage() {
 
         <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted sm:text-lg">
           You scope something ambitious in week one. By week ten the hard features are quietly
-          gone, and nobody notices until the viva. IdeaForge freezes what you promised to
+          gone, and nobody notices until the viva. ProjectPilot freezes what you promised to
           build, then reads your repository and shows exactly what&apos;s implemented, what&apos;s
           partial, and what&apos;s still missing.
         </p>

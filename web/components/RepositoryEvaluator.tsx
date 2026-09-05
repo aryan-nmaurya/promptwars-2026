@@ -99,7 +99,7 @@ export function RepositoryEvaluator({
               if (fieldError !== null) setFieldError(null);
             }}
             error={fieldError ?? undefined}
-            hint="Static inspection only: IdeaForge never runs or installs repository code."
+            hint="Static inspection only: ProjectPilot never runs or installs repository code."
             disabled={pending}
             required
           />

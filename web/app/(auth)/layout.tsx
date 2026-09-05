@@ -10,10 +10,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           className="inline-flex items-center gap-2 rounded font-display text-lg font-bold tracking-tight text-ink"
         >
           <span className="flex h-7 w-7 items-center justify-center rounded-md border border-amber/30 bg-amber/10 font-mono text-xs font-bold text-amber">
-            IF
+            PP
           </span>
           <span>
-            Idea<span className="text-amber">Forge</span>
+            Project<span className="text-amber">Pilot</span>
           </span>
         </Link>
       </header>
@@ -33,7 +33,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
                 Built to survive the viva.
               </h2>
               <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-                IdeaForge records every promised feature from day one, giving you a defensible audit trail of your final-year project.
+                ProjectPilot records every promised feature from day one, giving you a defensible audit trail of your final-year project.
               </p>
             </div>
 

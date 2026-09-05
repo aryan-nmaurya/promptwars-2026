@@ -243,7 +243,7 @@ export interface Page<T> {
   meta: { total: number; limit: number; offset: number };
 }
 
-// --- IdeaForge domain types (mirror api/app/schemas.py) ----------------------
+// --- ProjectPilot domain types (mirror api/app/schemas.py) ----------------------
 
 export interface Idea {
   id: string;

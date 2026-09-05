@@ -1,4 +1,4 @@
-"""IdeaForge schema.
+"""ProjectPilot schema.
 
 Six tables covering the whole product loop: a student's generation request
 (`IdeaSet`) yields three `Idea` rows; choosing one creates a `Project`, which

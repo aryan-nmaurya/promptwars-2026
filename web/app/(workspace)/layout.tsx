@@ -122,11 +122,11 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       <div className="flex items-center gap-3 border-b border-surface-border pb-4">
         <Link href="/" className="flex items-center gap-3 focus-visible:outline">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber/30 bg-amber/10 font-mono text-sm font-bold text-amber">
-            IF
+            PP
           </div>
           <div>
             <span className="font-display text-base font-bold tracking-tight text-ink sm:text-lg">
-              Idea<span className="text-amber">Forge</span>
+              Project<span className="text-amber">Pilot</span>
             </span>
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-muted">
               Project Desk
@@ -243,10 +243,10 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-surface-border bg-bg/95 px-4 py-3 backdrop-blur-md lg:hidden">
         <Link href="/" className="flex items-center gap-2 font-display font-bold text-ink">
           <span className="flex h-7 w-7 items-center justify-center rounded-md border border-amber/30 bg-amber/10 font-mono text-xs text-amber">
-            IF
+            PP
           </span>
           <span>
-            Idea<span className="text-amber">Forge</span>
+            Project<span className="text-amber">Pilot</span>
           </span>
         </Link>
         <button
