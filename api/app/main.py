@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.deps import gemini_or_none
 from app.errors import register_error_handlers
 from app.observability import RequestIdMiddleware, configure_logging
-from app.routers import evaluations, ideas, mentor, projects
+from app.routers import auth, evaluations, ideas, mentor, projects
 from app.schemas import ErrorResponse, HealthResponse
 from app.security_headers import SecurityHeadersMiddleware
 
@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
     )
 
     register_error_handlers(app)
+    app.include_router(auth.router)
     app.include_router(ideas.router)
     app.include_router(projects.router)
     app.include_router(mentor.router)

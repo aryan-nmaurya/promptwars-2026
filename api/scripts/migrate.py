@@ -38,6 +38,7 @@ ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("projects", "core_features", "JSON NOT NULL DEFAULT '[]'"),
     ("projects", "stretch_goals", "JSON NOT NULL DEFAULT '[]'"),
     ("projects", "edit_token_hash", "VARCHAR(64)"),
+    ("projects", "user_id", "VARCHAR(32)"),
 ]
 
 

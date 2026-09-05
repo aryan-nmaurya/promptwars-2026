@@ -53,6 +53,41 @@ class Page(ApiModel, Generic[T]):
     meta: PageMeta
 
 
+# --- Auth --------------------------------------------------------------------
+
+
+class UserRead(ApiModel):
+    id: str
+    email: str
+    created_at: datetime
+    onboarding_completed_at: datetime | None = None
+
+
+class AdoptedProject(ApiModel):
+    project_id: str
+    edit_token: str
+
+
+class SignupRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=320)]
+    password: Annotated[str, Field(min_length=10, max_length=200)]
+    adopted_projects: list[AdoptedProject] = Field(default_factory=list)
+
+
+class LoginRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=320)]
+    password: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class AuthResponse(ApiModel):
+    user: UserRead
+    session_token: str
+
+
+class UserUpdate(ApiModel):
+    onboarding_completed: bool
+
+
 # --- Ideas -------------------------------------------------------------------
 
 NonEmpty = Annotated[str, Field(min_length=2)]
@@ -190,6 +225,7 @@ class ProjectSummary(ApiModel):
 
 class ProjectRead(ApiModel):
     id: str
+    user_id: str | None = None
     title: str
     summary: str
     problem_solved: str

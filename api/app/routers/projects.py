@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import noload, selectinload
 
-from app.deps import GeminiDep, SessionDep
+from app.deps import GeminiDep, OptionalUserDep, SessionDep
 from app.models import Evaluation, Idea, IdeaSet, Project, RoadmapStep
 from app.project_access import issue_edit_token, verify_project_edit_token
 from app.ratelimit import RateLimiter
@@ -56,6 +57,7 @@ def _to_read(project: Project, latest_evaluation: Evaluation | None = None) -> P
     steps = [RoadmapStepRead.model_validate(s) for s in project.steps]
     return ProjectRead(
         id=project.id,
+        user_id=project.user_id,
         title=project.title,
         summary=project.summary,
         problem_solved=project.problem_solved,
@@ -95,7 +97,11 @@ async def _load_project(session: SessionDep, project_id: str) -> Project:
     summary="Choose an idea and generate its roadmap",
 )
 async def create_project(
-    payload: ProjectCreate, session: SessionDep, gemini: GeminiDep, response: Response
+    payload: ProjectCreate,
+    session: SessionDep,
+    gemini: GeminiDep,
+    response: Response,
+    current_user: OptionalUserDep = None,
 ) -> ProjectCreated:
     """Copy the chosen idea into a project, then generate a phased build plan."""
     idea = await session.get(Idea, payload.idea_id)
@@ -111,6 +117,7 @@ async def create_project(
     edit_token, edit_token_hash = issue_edit_token()
     project = Project(
         source_idea_id=idea.id,
+        user_id=current_user.id if current_user is not None else None,
         title=idea.title,
         summary=idea.summary,
         problem_solved=idea.problem_solved,
@@ -122,6 +129,8 @@ async def create_project(
         skills=parent.skills,
         edit_token_hash=edit_token_hash,
     )
+    if current_user is not None and current_user.onboarding_completed_at is None:
+        current_user.onboarding_completed_at = datetime.now(UTC)
     used_fallback = False
     try:
         steps = await gemini.generate_roadmap(

@@ -90,6 +90,51 @@ class Idea(Base):
     )
 
 
+class User(Base):
+    """Registered user account."""
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    password_salt: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    sessions: Mapped[list[Session]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    projects: Mapped[list[Project]] = relationship(
+        back_populates="user",
+        lazy="selectin",
+    )
+
+
+class Session(Base):
+    """Authenticated user session token."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+
 class Project(Base):
     """A chosen idea, promoted to something the student is actually building.
 
@@ -100,6 +145,9 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     source_idea_id: Mapped[str | None] = mapped_column(
         ForeignKey("ideas.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -123,6 +171,7 @@ class Project(Base):
     )
     used_fallback: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
+    user: Mapped[User | None] = relationship(back_populates="projects")
     steps: Mapped[list[RoadmapStep]] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
