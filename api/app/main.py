@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.config import get_settings
 from app.errors import register_error_handlers
+from app.routers import ideas, mentor, projects
 from app.schemas import ErrorResponse, HealthResponse
 
 logging.basicConfig(
@@ -44,6 +45,9 @@ def create_app() -> FastAPI:
     )
 
     register_error_handlers(app)
+    app.include_router(ideas.router)
+    app.include_router(projects.router)
+    app.include_router(mentor.router)
 
     @app.get("/health", response_model=HealthResponse, tags=["meta"], summary="Liveness + DB check")
     async def health() -> HealthResponse:

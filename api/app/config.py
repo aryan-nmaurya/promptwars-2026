@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     # Optional third-party key. Server-side only - never expose to the browser.
     GOOGLE_API_KEY: str | None = None
 
+    # Tried in order; the first that answers wins. Measured against this key:
+    # gemini-2.5-* is 404 for new keys, *-latest aliases return 503, and
+    # gemini-3.5-flash intermittently 500s - so the stable model leads.
+    # Two attempts at 25s must fit inside vercel.json's maxDuration of 60s.
+    GEMINI_MODELS: str = "gemini-3.6-flash,gemini-3.5-flash"
+    GEMINI_TIMEOUT_SECONDS: float = 25.0
+
     ENV: Env = "development"
 
     @field_validator("DATABASE_URL")
@@ -56,6 +63,15 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def gemini_models(self) -> list[str]:
+        return [m.strip() for m in self.GEMINI_MODELS.split(",") if m.strip()]
+
+    @property
+    def ai_enabled(self) -> bool:
+        """False when no key is configured; routes then return 503, not 500."""
+        return bool(self.GOOGLE_API_KEY)
 
     @property
     def is_production(self) -> bool:

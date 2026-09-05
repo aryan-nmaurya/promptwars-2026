@@ -12,7 +12,7 @@ anyone enumerate every student's project by counting.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     JSON,
@@ -155,8 +155,12 @@ class MentorMessage(Base):
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Python-side, not server_default=func.now(): Postgres' now() is
+    # TRANSACTION start time, so a question and its answer written in one
+    # transaction would share a timestamp and the chat would render in
+    # arbitrary order. This gives each row its true creation instant.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     project: Mapped[Project] = relationship(back_populates="messages")
