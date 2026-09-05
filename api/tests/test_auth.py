@@ -192,3 +192,68 @@ async def test_password_length_enforced(client: AsyncClient) -> None:
         json={"email": "short@univ.edu", "password": "too-short"},
     )
     assert res.status_code == 422
+
+
+async def test_login_sweeps_this_users_expired_sessions(client: AsyncClient) -> None:
+    """A dead row per login would grow the sessions table without bound."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import func, select
+
+    from app.db import SessionLocal
+    from app.models import Session as DbSession
+
+    email = "sweeper@university.edu"
+    await client.post("/auth/signup", json={"email": email, "password": "correct-horse-1"})
+
+    async with SessionLocal() as session:
+        rows = (await session.scalars(select(DbSession))).all()
+        for row in rows:
+            row.expires_at = datetime.now(UTC) - timedelta(days=1)
+        await session.commit()
+
+    await client.post("/auth/login", json={"email": email, "password": "correct-horse-1"})
+
+    async with SessionLocal() as session:
+        total = await session.scalar(select(func.count()).select_from(DbSession))
+    assert total == 1, "the expired signup session must be swept, leaving only the fresh one"
+
+
+async def test_a_swept_session_belongs_only_to_the_user_who_logged_in(
+    client: AsyncClient,
+) -> None:
+    """The sweep is scoped by user_id; it must not touch anyone else's rows."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import func, select
+
+    from app.db import SessionLocal
+    from app.models import Session as DbSession
+    from app.models import User
+
+    await client.post(
+        "/auth/signup", json={"email": "first@university.edu", "password": "correct-horse-1"}
+    )
+    await client.post(
+        "/auth/signup", json={"email": "second@university.edu", "password": "correct-horse-2"}
+    )
+
+    async with SessionLocal() as session:
+        other = await session.scalar(select(User).where(User.email == "second@university.edu"))
+        assert other is not None
+        rows = (await session.scalars(select(DbSession).where(DbSession.user_id == other.id))).all()
+        for row in rows:
+            row.expires_at = datetime.now(UTC) - timedelta(days=1)
+        await session.commit()
+
+    await client.post(
+        "/auth/login", json={"email": "first@university.edu", "password": "correct-horse-1"}
+    )
+
+    async with SessionLocal() as session:
+        expired_elsewhere = await session.scalar(
+            select(func.count())
+            .select_from(DbSession)
+            .where(DbSession.expires_at <= datetime.now(UTC))
+        )
+    assert expired_elsewhere == 1, "another account's expired session must survive"

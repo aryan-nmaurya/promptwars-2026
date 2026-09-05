@@ -7,15 +7,15 @@ import logging
 from collections.abc import AsyncIterator, Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Path, Query, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
-from sqlalchemy.orm import noload, selectinload
 
 from app.deps import GeminiDep, SessionDep
 from app.models import MentorMessage, Project
 from app.project_access import verify_project_edit_token
-from app.ratelimit import RateLimiter
+from app.ratelimit import RateLimiter, default_rate_limit
+from app.routers.common import load_project
 from app.schemas import (
     ErrorResponse,
     MentorAsk,
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/projects/{project_id}/mentor",
     tags=["mentor"],
+    dependencies=[default_rate_limit],
     responses={
         404: {"model": ErrorResponse, "description": "Not found"},
         422: {"model": ErrorResponse, "description": "Invalid request"},
@@ -92,17 +93,6 @@ def build_context(project: Project, messages: Sequence[MentorMessage] | None = N
     return "\n".join(lines)
 
 
-async def _load_project(session: SessionDep, project_id: str) -> Project:
-    project = await session.scalar(
-        select(Project)
-        .where(Project.id == project_id)
-        .options(selectinload(Project.steps), noload(Project.messages))
-    )
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return project
-
-
 async def _recent_messages(session: SessionDep, project_id: str) -> list[MentorMessage]:
     """Load only the turns Gemini can use rather than the complete history."""
     rows = (
@@ -131,7 +121,7 @@ async def ask_mentor(
     edit_token: Annotated[str | None, Header(alias="x-project-edit-token")] = None,
 ) -> MentorReply:
     """Persist the question, answer it in context, persist the answer."""
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     verify_project_edit_token(project, edit_token)
     recent = await _recent_messages(session, project.id)
     question = MentorMessage(project_id=project.id, role="user", content=payload.question)
@@ -215,7 +205,7 @@ async def ask_mentor_streaming(
     edit_token: Annotated[str | None, Header(alias="x-project-edit-token")] = None,
 ) -> StreamingResponse:
     """Same contract as POST, delivered as server-sent events."""
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     verify_project_edit_token(project, edit_token)
     recent = await _recent_messages(session, project.id)
     return StreamingResponse(
@@ -236,7 +226,7 @@ async def list_messages(
 ) -> Page[MentorMessageRead]:
     """Oldest first. Backed by ix_messages_project_created."""
     response.headers["Cache-Control"] = "private, no-store"
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     verify_project_edit_token(project, edit_token)
     where = MentorMessage.project_id == project_id
     total = await session.scalar(select(func.count()).select_from(MentorMessage).where(where)) or 0

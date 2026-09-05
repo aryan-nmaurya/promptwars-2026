@@ -30,6 +30,7 @@ from app import (
 )
 from app.deps import get_gemini  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
+from app.main import reset_health_cache  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.ratelimit import reset_rate_limit  # noqa: E402
 from app.routers.ideas import reset_ideas_cache  # noqa: E402
@@ -180,9 +181,10 @@ async def session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
 
 @pytest.fixture(autouse=True)
 def _clean_shared_state() -> None:
-    """Rate-limit counters and the idea cache are process-global."""
+    """Rate-limit counters, the idea cache and the health probe are process-global."""
     reset_rate_limit()
     reset_ideas_cache()
+    reset_health_cache()
 
 
 @pytest.fixture

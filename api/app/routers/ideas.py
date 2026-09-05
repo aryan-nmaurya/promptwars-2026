@@ -11,7 +11,7 @@ from app.cache import TTLCache, cache_key
 from app.config import get_settings
 from app.deps import GeminiDep, SessionDep
 from app.models import Idea, IdeaSet
-from app.ratelimit import RateLimiter
+from app.ratelimit import RateLimiter, default_rate_limit
 from app.schemas import ErrorResponse, IdeaSetCreate, IdeaSetRead
 from app.services.fallback import fallback_ideas
 from app.services.gemini import GeminiError, GeneratedIdea
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/ideas",
     tags=["ideas"],
+    dependencies=[default_rate_limit],
     responses={
         422: {"model": ErrorResponse, "description": "Invalid request"},
         429: {"model": ErrorResponse, "description": "Rate limit exceeded"},

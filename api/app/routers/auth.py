@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.auth_service import (
     dummy_verify_password,
@@ -20,9 +21,10 @@ from app.auth_service import (
 from app.deps import CurrentSessionDep, CurrentUserDep, SessionDep
 from app.models import Project, User
 from app.models import Session as DbSession
-from app.project_access import _token_digest
-from app.ratelimit import RateLimiter
+from app.project_access import token_digest
+from app.ratelimit import RateLimiter, default_rate_limit
 from app.schemas import (
+    AdoptedProject,
     AuthResponse,
     ErrorResponse,
     LoginRequest,
@@ -36,6 +38,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/auth",
     tags=["auth"],
+    dependencies=[default_rate_limit],
     responses={
         400: {"model": ErrorResponse, "description": "Bad request"},
         401: {"model": ErrorResponse, "description": "Unauthorized"},
@@ -52,20 +55,19 @@ GENERIC_AUTH_ERROR = "Invalid email or password"
 
 
 async def _adopt_projects(
-    session: SessionDep, user_id: str, adopted_projects: list[object]
+    session: SessionDep, user_id: str, adopted_projects: list[AdoptedProject]
 ) -> None:
     """Adopt anonymous projects created in the current browser before signup."""
     for item in adopted_projects:
-        project_id = getattr(item, "project_id", None)
-        edit_token = getattr(item, "edit_token", None)
-        if not project_id or not edit_token:
+        edit_token = item.edit_token.strip()
+        if not item.project_id or not edit_token:
             continue
 
-        project = await session.get(Project, project_id)
+        project = await session.get(Project, item.project_id)
         if project is None or project.user_id is not None or not project.edit_token_hash:
             continue
 
-        candidate_digest = _token_digest(edit_token.strip())
+        candidate_digest = token_digest(edit_token)
         if secrets.compare_digest(candidate_digest, project.edit_token_hash):
             project.user_id = user_id
             logger.info("Adopted anonymous project id=%s for user_id=%s", project.id, user_id)
@@ -94,7 +96,10 @@ async def signup(payload: SignupRequest, session: SessionDep) -> AuthResponse:
             detail="An account with this email already exists",
         )
 
-    password_hash, password_salt = hash_password(payload.password)
+    # 600k PBKDF2 rounds are deliberately expensive, which makes them a
+    # deliberate stall of the whole event loop if run inline. One thread hop
+    # keeps the worker answering other requests while this one hashes.
+    password_hash, password_salt = await asyncio.to_thread(hash_password, payload.password)
     user = User(
         email=email,
         password_hash=password_hash,
@@ -138,18 +143,30 @@ async def login(payload: LoginRequest, session: SessionDep) -> AuthResponse:
     user = await session.scalar(select(User).where(User.email == email))
 
     if user is None:
-        dummy_verify_password(payload.password)
+        # Same thread hop as the success path, so the equalised timing this
+        # relies on is preserved.
+        await asyncio.to_thread(dummy_verify_password, payload.password)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GENERIC_AUTH_ERROR,
         )
 
-    if not verify_password(payload.password, user.password_salt, user.password_hash):
+    if not await asyncio.to_thread(
+        verify_password, payload.password, user.password_salt, user.password_hash
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=GENERIC_AUTH_ERROR,
         )
 
+    # Every login mints a new token rather than extending the old one, and
+    # sweeps this user's expired rows. Without the sweep an account
+    # accumulates one dead session row per login, forever.
+    await session.execute(
+        delete(DbSession).where(
+            DbSession.user_id == user.id, DbSession.expires_at <= datetime.now(UTC)
+        )
+    )
     raw_token, token_hash, expires_at = issue_session_token()
     db_session = DbSession(
         user_id=user.id,

@@ -14,7 +14,7 @@ from app.deps import GeminiDep, SessionDep
 from app.models import Evaluation
 from app.project_access import verify_project_edit_token
 from app.ratelimit import RateLimiter
-from app.routers.projects import _evaluation_to_read, _load_project
+from app.routers.common import evaluation_to_read, load_project
 from app.schemas import ErrorResponse, EvaluationRead, RepositoryEvaluate
 from app.services.evaluator import (
     EVALUATOR_VERSION,
@@ -78,7 +78,7 @@ async def evaluate_repository(
 ) -> EvaluationRead:
     """Inspect bounded text evidence; repository code is never cloned or executed."""
 
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     verify_project_edit_token(project, edit_token)
     settings = get_settings()
     try:
@@ -118,7 +118,7 @@ async def evaluate_repository(
         _existing_query(project.id, evidence.repository.full_name, evidence.commit_sha)
     )
     if existing is not None:
-        return _evaluation_to_read(existing)
+        return evaluation_to_read(existing)
 
     try:
         result = await evaluate_project_repository(
@@ -148,5 +148,5 @@ async def evaluate_repository(
         )
         if existing is None:
             raise
-        return _evaluation_to_read(existing)
-    return _evaluation_to_read(row)
+        return evaluation_to_read(existing)
+    return evaluation_to_read(row)

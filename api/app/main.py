@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
+from app.cache import TTLCache
 from app.config import get_settings
 from app.deps import gemini_or_none
 from app.errors import register_error_handlers
@@ -24,9 +25,30 @@ configure_logging(logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def _false() -> bool:
-    """Stand-in probe for when no Gemini key is configured."""
-    return False
+#: Platform health checks poll far more often than Gemini's reachability
+#: changes, and an uncached probe spends a real API call on every hit. Thirty
+#: seconds keeps /health honest without billing it.
+GEMINI_PROBE_TTL_SECONDS = 30.0
+_gemini_probe: TTLCache[bool] = TTLCache(ttl_seconds=GEMINI_PROBE_TTL_SECONDS)
+_GEMINI_PROBE_KEY = "gemini"
+
+
+async def _probe_gemini() -> bool:
+    """Gemini reachability, at most once per `GEMINI_PROBE_TTL_SECONDS`."""
+    service = gemini_or_none()
+    if service is None:
+        return False
+    cached = _gemini_probe.get(_GEMINI_PROBE_KEY)
+    if cached is not None:
+        return cached
+    reachable = await service.ping()
+    _gemini_probe.set(_GEMINI_PROBE_KEY, reachable)
+    return reachable
+
+
+def reset_health_cache() -> None:
+    """Clear the cached Gemini probe. Used by tests."""
+    _gemini_probe.clear()
 
 
 def create_app() -> FastAPI:
@@ -77,13 +99,10 @@ def create_app() -> FastAPI:
 
         `db` and `gemini` report each dependency separately; a red dependency
         must not make the platform think the whole function is dead. The two
-        probes run concurrently so /health stays fast.
+        probes run concurrently so /health stays fast, and the Gemini one is
+        cached so polling this endpoint cannot spend the daily quota.
         """
-        service = gemini_or_none()
-        db_ok, gemini_ok = await asyncio.gather(
-            db.ping_db(),
-            service.ping() if service is not None else _false(),
-        )
+        db_ok, gemini_ok = await asyncio.gather(db.ping_db(), _probe_gemini())
         return HealthResponse(status="ok", db=db_ok, gemini=gemini_ok)
 
     logger.info("App started env=%s origins=%s", settings.ENV, settings.allowed_origins)

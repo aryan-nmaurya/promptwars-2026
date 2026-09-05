@@ -106,14 +106,23 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Both collections are `lazy="raise"`. A User is loaded on EVERY
+    # authenticated request purely to identify the caller, and an eager
+    # collection here fans out without bound: `projects` pulled every project
+    # the user owns, and each of those selectin-loaded its own roadmap steps
+    # and mentor messages - five queries to answer "who is this?". Deletion is
+    # left to the database, which already declares ON DELETE CASCADE for
+    # sessions and ON DELETE SET NULL for projects.
     sessions: Mapped[list[Session]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        passive_deletes=True,
+        lazy="raise",
     )
     projects: Mapped[list[Project]] = relationship(
         back_populates="user",
-        lazy="selectin",
+        passive_deletes=True,
+        lazy="raise",
     )
 
 

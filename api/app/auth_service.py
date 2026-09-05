@@ -18,7 +18,10 @@ from datetime import UTC, datetime, timedelta
 PBKDF2_ITERATIONS = 600_000
 SALT_BYTES = 16
 SESSION_TOKEN_BYTES = 32
-SESSION_TTL_DAYS = 30
+# The raw token lives in the browser's localStorage, which any injected script
+# can read. Thirty days made a single leak effectively permanent; seven bounds
+# it, and logging in issues a fresh token rather than extending the old one.
+SESSION_TTL_DAYS = 7
 
 # Strict RFC 5322-compliant basic pattern avoiding catastrophic backtracking
 EMAIL_PATTERN = re.compile(

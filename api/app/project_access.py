@@ -26,10 +26,10 @@ def issue_edit_token() -> tuple[str, str]:
     subsequent reads expose neither the raw value nor its digest.
     """
     token = secrets.token_urlsafe(EDIT_TOKEN_BYTES)
-    return token, _token_digest(token)
+    return token, token_digest(token)
 
 
-def _token_digest(token: str) -> str:
+def token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
@@ -43,7 +43,7 @@ def verify_project_edit_token(project: Project, token: str | None) -> None:
     # owner token, while the length cap prevents needlessly hashing huge input.
     if len(candidate) > EDIT_TOKEN_MAX_LENGTH:
         candidate = ""
-    candidate_digest = _token_digest(candidate)
+    candidate_digest = token_digest(candidate)
     expected_digest = stored_digest or ("0" * 64)
 
     if (

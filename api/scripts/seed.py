@@ -103,7 +103,6 @@ async def _seed_project(session) -> str | None:  # type: ignore[no-untyped-def]
         step.phase, step.position, step.title, step.detail = phase, position, title, detail
         step.is_done = is_done
 
-    _ = raw_edit_token  # returned below, after the rows are written
     for index, (role, content) in enumerate(DEMO_CONVERSATION):
         message_id = f"demo-msg-{index:02d}"
         message = await session.get(MentorMessage, message_id)

@@ -8,15 +8,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import noload, selectinload
 
 from app.deps import GeminiDep, OptionalUserDep, SessionDep
 from app.models import Evaluation, Idea, IdeaSet, Project, RoadmapStep
 from app.project_access import issue_edit_token, verify_project_edit_token
-from app.ratelimit import RateLimiter
+from app.ratelimit import RateLimiter, default_rate_limit
+from app.routers.common import evaluation_to_read, load_project
 from app.schemas import (
     ErrorResponse,
-    EvaluationRead,
     ProjectCreate,
     ProjectCreated,
     ProjectRead,
@@ -31,6 +30,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
+    dependencies=[default_rate_limit],
     responses={
         404: {"model": ErrorResponse, "description": "Not found"},
         422: {"model": ErrorResponse, "description": "Invalid request"},
@@ -40,16 +40,6 @@ router = APIRouter(
 
 ai_limit = Depends(RateLimiter(limit=12, window_seconds=60.0, scope="projects"))
 ResourceId = Annotated[str, Path(min_length=8, max_length=32)]
-
-
-def _evaluation_to_read(evaluation: Evaluation) -> EvaluationRead:
-    payload = dict(evaluation.result)
-    payload.update(
-        id=evaluation.id,
-        overall_score=evaluation.overall_score,
-        created_at=evaluation.created_at,
-    )
-    return EvaluationRead.model_validate(payload)
 
 
 def _to_read(project: Project, latest_evaluation: Evaluation | None = None) -> ProjectRead:
@@ -71,22 +61,9 @@ def _to_read(project: Project, latest_evaluation: Evaluation | None = None) -> P
         steps_total=len(steps),
         steps_done=sum(1 for s in steps if s.is_done),
         latest_evaluation=(
-            _evaluation_to_read(latest_evaluation) if latest_evaluation is not None else None
+            evaluation_to_read(latest_evaluation) if latest_evaluation is not None else None
         ),
     )
-
-
-async def _load_project(session: SessionDep, project_id: str) -> Project:
-    # Project pages need their roadmap, but never need to hydrate an unbounded
-    # mentor history. Mentor routes load only the most recent turns explicitly.
-    project = await session.scalar(
-        select(Project)
-        .where(Project.id == project_id)
-        .options(selectinload(Project.steps), noload(Project.messages))
-    )
-    if project is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return project
 
 
 @router.post(
@@ -164,7 +141,7 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectRead, summary="Read a project")
 async def get_project(session: SessionDep, project_id: ResourceId) -> ProjectRead:
     """Public by design - this is the URL a student shares with a professor."""
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     latest = await session.scalar(
         select(Evaluation)
         .where(Evaluation.project_id == project.id)
@@ -187,7 +164,7 @@ async def update_step(
     edit_token: Annotated[str | None, Header(alias="x-project-edit-token")] = None,
 ) -> RoadmapStepRead:
     """Scoped to the project so a step id alone cannot mutate another project."""
-    project = await _load_project(session, project_id)
+    project = await load_project(session, project_id)
     verify_project_edit_token(project, edit_token)
     step = await session.scalar(
         select(RoadmapStep).where(RoadmapStep.id == step_id, RoadmapStep.project_id == project_id)

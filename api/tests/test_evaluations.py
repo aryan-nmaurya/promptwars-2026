@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import pytest
 from httpx import AsyncClient
 
 from app.services.evaluator import assessable_categories
 from app.services.gemini import GeneratedEvaluation
-from app.services.github import EvidenceFile, GitHubRepoRef, RepositoryEvidence
+from app.services.github import (
+    EvidenceFile,
+    GitHubEvidenceCollector,
+    GitHubNotFound,
+    GitHubProtocolError,
+    GitHubRateLimited,
+    GitHubRepoRef,
+    GitHubRepositoryMoved,
+    GitHubRepositoryRejected,
+    GitHubTimeout,
+    InvalidGitHubURL,
+    RepositoryEvidence,
+)
 from tests.conftest import StubGemini
 
 PAYLOAD = {"interests": "healthcare", "skills": "python"}
@@ -234,3 +247,108 @@ async def test_an_unassessed_category_never_drags_the_overall_score_down(
     scored = {name: value for name, value in body["scores"].items() if value is not None}
     assert body["overall_score"] >= min(scored.values())
     assert body["overall_score"] <= max(scored.values())
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_status"),
+    [
+        (InvalidGitHubURL("Enter a canonical https://github.com/owner/repository URL"), 422),
+        (GitHubNotFound("missing"), 404),
+        (GitHubRepositoryMoved("This repository redirects"), 422),
+        (GitHubRepositoryRejected("Only public GitHub repositories can be analyzed"), 422),
+        (GitHubTimeout("deadline"), 504),
+        (GitHubProtocolError("bad json"), 502),
+    ],
+)
+async def test_collection_failures_map_to_client_or_gateway_status(
+    client: AsyncClient,
+    gemini: StubGemini,
+    monkeypatch,
+    failure: Exception,
+    expected_status: int,
+) -> None:  # type: ignore[no-untyped-def]
+    """Every collector failure is a typed status, never a bare 500."""
+
+    async def _raise(self, repository_url: str, *, planned_keywords=()):  # type: ignore[no-untyped-def]
+        raise failure
+
+    monkeypatch.setattr(GitHubEvidenceCollector, "collect", _raise)
+    project, token = await _make_project(client)
+
+    response = await client.post(
+        f"/projects/{project['id']}/evaluate",
+        json={"github_url": "https://github.com/acme/demo"},
+        headers={"x-project-edit-token": token},
+    )
+
+    assert response.status_code == expected_status
+    assert set(response.json()) == {"error"}
+    assert "Traceback" not in response.text
+    assert gemini.calls.count("evaluate") == 0
+
+
+async def test_github_rate_limit_is_forwarded_with_its_retry_hint(
+    client: AsyncClient, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    """A student who hits GitHub's ceiling is told when to come back."""
+
+    async def _raise(self, repository_url: str, *, planned_keywords=()):  # type: ignore[no-untyped-def]
+        raise GitHubRateLimited("limit", retry_after="120", authenticated=True)
+
+    monkeypatch.setattr(GitHubEvidenceCollector, "collect", _raise)
+    project, token = await _make_project(client)
+
+    response = await client.post(
+        f"/projects/{project['id']}/evaluate",
+        json={"github_url": "https://github.com/acme/demo"},
+        headers={"x-project-edit-token": token},
+    )
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"] == "120"
+
+
+async def test_a_malformed_repository_url_never_reaches_the_collector(
+    client: AsyncClient, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    """Body validation rejects a non-URL before any outbound request is made."""
+    called = False
+
+    async def _spy(self, repository_url: str, *, planned_keywords=()):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        raise AssertionError("the collector must not run")
+
+    monkeypatch.setattr(GitHubEvidenceCollector, "collect", _spy)
+    project, token = await _make_project(client)
+
+    response = await client.post(
+        f"/projects/{project['id']}/evaluate",
+        json={"github_url": "nope"},
+        headers={"x-project-edit-token": token},
+    )
+
+    assert response.status_code == 422
+    assert called is False
+
+
+async def test_evaluator_model_failure_is_a_503_not_a_crash(
+    client: AsyncClient, gemini: StubGemini, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    """A dead model is an unavailable dependency, not a bug, and leaks nothing."""
+    monkeypatch.setattr(GitHubEvidenceCollector, "collect", _mock_collect)
+    project, token = await _make_project(client)
+    gemini.fail = True
+
+    response = await client.post(
+        f"/projects/{project['id']}/evaluate",
+        json={"github_url": "https://github.com/acme/demo"},
+        headers={"x-project-edit-token": token},
+    )
+
+    assert response.status_code == 503
+    # Every 5xx body is stripped to the generic message, so the internal
+    # reason stays in the log and never reaches the student.
+    assert set(response.json()) == {"error"}
+    assert "GeminiUnavailable" not in response.text
+    assert "Traceback" not in response.text
