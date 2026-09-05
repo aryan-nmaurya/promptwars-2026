@@ -50,4 +50,26 @@ describe("OwnerMentorCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/private to the student/i)).not.toBeInTheDocument();
   });
+
+  it("renders the live chat for an authenticated owner without a local edit token", async () => {
+    localStorage.setItem("ideaforge.auth.token", "session-token-123");
+    localStorage.setItem(
+      "ideaforge.auth.user",
+      JSON.stringify({
+        id: "user-123",
+        email: "owner@example.com",
+        created_at: "2026-09-05T00:00:00Z",
+        onboarding_completed_at: null,
+      }),
+    );
+    window.dispatchEvent(new Event("ideaforge:auth-changed"));
+
+    render(<OwnerMentorCard projectId={PROJECT_ID} projectOwnerId="user-123" />);
+
+    expect(
+      await screen.findByRole("textbox", { name: /ask the mentor a question/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/private to the student/i)).not.toBeInTheDocument();
+  });
 });
+

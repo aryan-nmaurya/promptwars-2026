@@ -76,9 +76,10 @@ export function forgetLocalProjects(): void {
   notifyAccessChanged();
 }
 
-export function projectEditHeaders(editToken: string): Record<string, string> {
-  return { [PROJECT_EDIT_HEADER]: editToken };
+export function projectEditHeaders(editToken?: string | null): Record<string, string> {
+  return editToken ? { [PROJECT_EDIT_HEADER]: editToken } : {};
 }
+
 
 /** Keep the write capability on this device, separate from the shareable URL. */
 export function rememberOwnedProject(project: Project, editToken: string): void {

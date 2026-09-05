@@ -128,14 +128,6 @@ class GeneratedPlannedItem(BaseModel):
     evidence: list[GeneratedEvidence] = Field(default_factory=list, max_length=5)
     gap: str | None = Field(default=None, max_length=800)
 
-    @model_validator(mode="after")
-    def evidence_matches_claim(self) -> GeneratedPlannedItem:
-        if self.status in {"implemented", "partial"} and not self.evidence:
-            raise ValueError("positive claims require evidence")
-        if self.status != "implemented" and not self.gap:
-            raise ValueError("non-implemented claims require a gap")
-        return self
-
 
 class GeneratedEvaluationScores(BaseModel):
     architecture: int = Field(ge=0, le=100)

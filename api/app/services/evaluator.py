@@ -192,6 +192,8 @@ def _is_implementation_path(path: str) -> bool:
 
 
 def _feature_score(items: list[PlannedVsBuiltItem]) -> int:
+    if not items:
+        return 0
     values = {"implemented": 1.0, "partial": 0.5, "not_found": 0.0, "insufficient_evidence": 0.0}
     return round(100 * sum(values[item.status] for item in items) / len(items))
 
@@ -276,9 +278,14 @@ async def evaluate_project_repository(
     # tests would lose a tenth of its total to a category nobody scored, which
     # is a penalty disguised as an average.
     weight_total = sum(CATEGORY_WEIGHTS[name] for name in measured)
-    overall = round(
-        sum(CATEGORY_WEIGHTS[name] * value for name, value in measured.items()) / weight_total
+    overall = (
+        round(
+            sum(CATEGORY_WEIGHTS[name] * value for name, value in measured.items()) / weight_total
+        )
+        if weight_total > 0
+        else 0
     )
+
     unassessed_note = (
         [
             "Not scored, because the analyzed files contained no evidence for it: "

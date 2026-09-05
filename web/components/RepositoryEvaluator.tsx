@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { EvaluationReport } from "@/components/evaluation/EvaluationReport";
 import { Button, Card, ErrorState, Input, Spinner, StatusRegion } from "@/components/ui";
 import { api, toErrorMessage, type Evaluation } from "@/lib/api";
+import { useCanEditProject } from "@/lib/auth";
 import { projectEditHeaders, useProjectEditToken } from "@/lib/project-access";
 
 /**
@@ -28,12 +29,15 @@ function githubUrlError(value: string): string | null {
 
 export function RepositoryEvaluator({
   projectId,
+  projectOwnerId,
   initialEvaluation,
 }: {
   projectId: string;
+  projectOwnerId?: string | null;
   initialEvaluation: Evaluation | null;
 }) {
   const editToken = useProjectEditToken(projectId);
+  const canEdit = useCanEditProject(projectId, projectOwnerId);
   const [repositoryUrl, setRepositoryUrl] = useState(initialEvaluation?.repository.url ?? "");
   const [evaluation, setEvaluation] = useState(initialEvaluation);
   const [pending, setPending] = useState(false);
@@ -43,7 +47,7 @@ export function RepositoryEvaluator({
 
   async function evaluate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (pending || editToken === null) return;
+    if (pending || !canEdit) return;
 
     const normalized = repositoryUrl.trim();
     const validationError = githubUrlError(normalized);
@@ -73,7 +77,7 @@ export function RepositoryEvaluator({
       description="Compare the project you planned with evidence in one public GitHub repository."
       className="border-amber-dim"
     >
-      {editToken === null ? (
+      {!canEdit ? (
         evaluation === null ? (
           <div className="rounded-md border border-dashed border-control-border p-5 text-center">
             <p className="text-sm font-medium text-ink">No repository evaluation yet</p>
@@ -84,6 +88,7 @@ export function RepositoryEvaluator({
           </div>
         ) : null
       ) : (
+
         <form ref={formRef} onSubmit={evaluate} aria-busy={pending} className="mb-6 flex flex-col gap-3">
           <Input
             label="Public GitHub repository"
@@ -133,13 +138,14 @@ export function RepositoryEvaluator({
             title="Could not evaluate this repository"
             message={error}
             onRetry={
-              editToken === null
+              !canEdit
                 ? undefined
                 : () => {
                     setError(null);
                     formRef.current?.requestSubmit();
                   }
             }
+
           />
         </div>
       ) : null}

@@ -1,5 +1,6 @@
 import { ApiError, apiBaseUrl } from "./api";
 import type { MentorMessage } from "./api";
+import { getSessionToken } from "./auth";
 import { projectEditHeaders } from "./project-access";
 
 export interface StreamDone {
@@ -29,22 +30,25 @@ function sessionHeader(): Record<string, string> {
 export async function streamMentorAnswer(
   projectId: string,
   question: string,
-  editToken: string,
+  editToken: string | null | undefined,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
 ): Promise<StreamDone> {
   const url = `${apiBaseUrl()}/projects/${projectId}/mentor/stream`;
+  const auth = getSessionToken();
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
       ...sessionHeader(),
+      ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
       ...projectEditHeaders(editToken),
     },
     body: JSON.stringify({ question }),
     signal,
   });
+
 
   if (!response.ok || response.body === null) {
     throw new ApiError(

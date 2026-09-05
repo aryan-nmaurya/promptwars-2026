@@ -134,4 +134,66 @@ describe("RepositoryEvaluator", () => {
     expect(alert).toHaveTextContent(/GitHub rate limit reached/);
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
   });
+
+  it("allows authenticated owner to evaluate without a local edit token", async () => {
+    localStorage.setItem("ideaforge.auth.token", "session-token-123");
+    localStorage.setItem(
+      "ideaforge.auth.user",
+      JSON.stringify({
+        id: "user-123",
+        email: "owner@example.com",
+        created_at: "2026-09-05T00:00:00Z",
+        onboarding_completed_at: null,
+      }),
+    );
+    window.dispatchEvent(new Event("ideaforge:auth-changed"));
+
+    post.mockResolvedValue(evaluation());
+    const user = userEvent.setup();
+    render(
+      <RepositoryEvaluator
+        projectId={PROJECT_ID}
+        projectOwnerId="user-123"
+        initialEvaluation={null}
+      />,
+    );
+
+    const input = screen.getByRole("textbox", { name: /public github repository/i });
+    expect(input).toBeInTheDocument();
+    await user.type(input, "https://github.com/acme/demo");
+    await user.click(screen.getByRole("button", { name: /evaluate repository/i }));
+
+    expect(post).toHaveBeenCalledWith(
+      `/projects/${PROJECT_ID}/evaluate`,
+      { github_url: "https://github.com/acme/demo" },
+      { headers: {}, timeoutMs: 58_000 },
+    );
+    expect(await screen.findByText(/72/)).toBeInTheDocument();
+  });
+
+  it("hides the form when logged in user is not the project owner", () => {
+    localStorage.setItem("ideaforge.auth.token", "session-token-123");
+    localStorage.setItem(
+      "ideaforge.auth.user",
+      JSON.stringify({
+        id: "other-user",
+        email: "other@example.com",
+        created_at: "2026-09-05T00:00:00Z",
+        onboarding_completed_at: null,
+      }),
+    );
+    window.dispatchEvent(new Event("ideaforge:auth-changed"));
+
+    render(
+      <RepositoryEvaluator
+        projectId={PROJECT_ID}
+        projectOwnerId="user-123"
+        initialEvaluation={null}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: /evaluate repository/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/shared view is read-only/i)).toBeInTheDocument();
+  });
 });
+

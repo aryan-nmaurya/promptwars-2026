@@ -1,11 +1,17 @@
 "use client";
 
-import { useProjectEditToken } from "@/lib/project-access";
+import { useCanEditProject } from "@/lib/auth";
 
-export function ProjectAccessNotice({ projectId }: { projectId: string }) {
-  const editToken = useProjectEditToken(projectId);
+export function ProjectAccessNotice({
+  projectId,
+  projectOwnerId,
+}: {
+  projectId: string;
+  projectOwnerId?: string | null;
+}) {
+  const canEdit = useCanEditProject(projectId, projectOwnerId);
 
-  return editToken === null ? (
+  return !canEdit ? (
     <div className="flex items-start gap-2 rounded-md border border-surface-border bg-surface-2 px-3 py-2 text-xs text-ink-muted">
       <span aria-hidden="true">◉</span>
       <p>
@@ -22,3 +28,4 @@ export function ProjectAccessNotice({ projectId }: { projectId: string }) {
     </div>
   );
 }
+

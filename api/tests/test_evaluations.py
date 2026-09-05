@@ -105,6 +105,47 @@ async def test_owner_can_evaluate_and_public_page_reads_latest_result(
     assert "edit_token" not in public
 
 
+async def test_authenticated_owner_can_evaluate_without_edit_token(
+    client: AsyncClient, gemini: StubGemini, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    from app.services.github import GitHubEvidenceCollector
+
+    monkeypatch.setattr(GitHubEvidenceCollector, "collect", _mock_collect)
+
+    # Sign up user
+    auth = (
+        await client.post(
+            "/auth/signup",
+            json={"email": "evalowner_test@example.com", "password": "password123"},
+        )
+    ).json()
+    auth_headers = {"Authorization": f"Bearer {auth['session_token']}"}
+
+    # Create project as authenticated user
+    ideas = (await client.post("/ideas", json=PAYLOAD)).json()
+    created = (
+        await client.post(
+            "/projects",
+            json={"idea_id": ideas["ideas"][0]["id"]},
+            headers=auth_headers,
+        )
+    ).json()
+    project = created["project"]
+    assert project["user_id"] is not None
+
+    # Evaluate without any x-project-edit-token header
+    response = await client.post(
+        f"/projects/{project['id']}/evaluate",
+        json={"github_url": "https://github.com/acme/demo"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["repository"]["full_name"] == "acme/demo"
+    assert body["scores"]["feature_completion"] == 100
+
+
 async def test_same_commit_reuses_immutable_evaluation(
     client: AsyncClient, gemini: StubGemini, monkeypatch
 ) -> None:  # type: ignore[no-untyped-def]

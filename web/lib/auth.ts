@@ -3,7 +3,12 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 import { api, type AuthResponse, type User } from "./api";
-import { forgetLocalProjects, getProjectEditToken, useRecentProjects } from "./project-access";
+import {
+  forgetLocalProjects,
+  getProjectEditToken,
+  useProjectEditToken,
+  useRecentProjects,
+} from "./project-access";
 
 const AUTH_TOKEN_KEY = "ideaforge.auth.token";
 const AUTH_USER_KEY = "ideaforge.auth.user";
@@ -158,3 +163,15 @@ export function useAdoptableProjects(): { project_id: string; edit_token: string
     return adoptable;
   }, [recent]);
 }
+
+export function useCanEditProject(projectId: string, projectOwnerId?: string | null): boolean {
+  const editToken = useProjectEditToken(projectId);
+  const { user, status } = useSession();
+
+  if (editToken !== null) return true;
+  if (status === "authenticated" && Boolean(user?.id && projectOwnerId && user.id === projectOwnerId)) {
+    return true;
+  }
+  return false;
+}
+

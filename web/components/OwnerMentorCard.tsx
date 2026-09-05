@@ -2,23 +2,25 @@
 
 import { MentorChat } from "@/components/MentorChat";
 import { Card, GeminiBadge } from "@/components/ui";
-import { useProjectEditToken } from "@/lib/project-access";
+import { useCanEditProject } from "@/lib/auth";
 
 /**
  * The mentor, or an honest account of why it is not here.
  *
- * Mentor history is private to the device that owns the project's edit
- * capability — a shared viewer must not be able to read the student's
- * conversation, nor spend their Gemini quota. This component used to return
- * `null` for those viewers, which enforced that correctly but made the whole
- * feature invisible: a supervisor opening a shared link saw no mentor at all
- * and had no way to know one existed. The capability check is unchanged; only
- * the silence is fixed.
+ * Mentor history is private to the device or account that owns the project —
+ * a shared viewer must not be able to read the student's conversation,
+ * nor spend their Gemini quota.
  */
-export function OwnerMentorCard({ projectId }: { projectId: string }) {
-  const editToken = useProjectEditToken(projectId);
+export function OwnerMentorCard({
+  projectId,
+  projectOwnerId,
+}: {
+  projectId: string;
+  projectOwnerId?: string | null;
+}) {
+  const canEdit = useCanEditProject(projectId, projectOwnerId);
 
-  if (editToken === null) {
+  if (!canEdit) {
     return (
       <Card
         title="Project mentor"
@@ -50,7 +52,8 @@ export function OwnerMentorCard({ projectId }: { projectId: string }) {
       as="h2"
       description="Private, project-aware guidance grounded in your stack, roadmap and progress."
     >
-      <MentorChat projectId={projectId} />
+      <MentorChat projectId={projectId} projectOwnerId={projectOwnerId} />
     </Card>
   );
 }
+

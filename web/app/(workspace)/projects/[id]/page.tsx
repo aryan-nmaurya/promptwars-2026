@@ -75,7 +75,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
         <CopyLinkButton />
         <ClaimEditToken project={project} />
-        <ProjectAccessNotice projectId={project.id} />
+        <ProjectAccessNotice projectId={project.id} projectOwnerId={project.user_id} />
       </header>
 
       {project.used_fallback ? <FallbackBanner what="this roadmap" /> : null}
@@ -83,9 +83,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       <div id="evaluation">
         <RepositoryEvaluator
           projectId={project.id}
+          projectOwnerId={project.user_id}
           initialEvaluation={project.latest_evaluation ?? null}
         />
       </div>
+
 
       <div id="overview">
         <Card
@@ -151,13 +153,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           as="h2"
           description="A phased build plan with progress saved for the owner."
         >
-          <RoadmapChecklist projectId={project.id} initialSteps={project.steps} />
+          <RoadmapChecklist
+            projectId={project.id}
+            projectOwnerId={project.user_id}
+            initialSteps={project.steps}
+          />
         </Card>
       </div>
 
       <div id="mentor">
-        <OwnerMentorCard projectId={project.id} />
+        <OwnerMentorCard projectId={project.id} projectOwnerId={project.user_id} />
       </div>
     </div>
   );
 }
+

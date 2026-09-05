@@ -13,15 +13,19 @@ import {
   StatusRegion,
 } from "@/components/ui";
 import { api, toErrorMessage, type MentorMessage, type Page } from "@/lib/api";
+import { useCanEditProject } from "@/lib/auth";
 import { projectEditHeaders, useProjectEditToken } from "@/lib/project-access";
 import { streamMentorAnswer } from "@/lib/stream";
 
 export function MentorChat({
   projectId,
+  projectOwnerId,
 }: {
   projectId: string;
+  projectOwnerId?: string | null;
 }) {
   const editToken = useProjectEditToken(projectId);
+  const canEdit = useCanEditProject(projectId, projectOwnerId);
   const [messages, setMessages] = useState<MentorMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [question, setQuestion] = useState("");
@@ -32,7 +36,7 @@ export function MentorChat({
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (editToken === null) return;
+    if (!canEdit) return;
     const controller = new AbortController();
     let cancelled = false;
     void api
@@ -53,12 +57,13 @@ export function MentorChat({
       cancelled = true;
       controller.abort();
     };
-  }, [editToken, projectId]);
+  }, [canEdit, editToken, projectId]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const asked = question.trim();
-    if (asked.length < 3 || pending || editToken === null) return;
+    if (asked.length < 3 || pending || !canEdit) return;
+
 
     setPending(true);
     setError(null);
@@ -88,9 +93,10 @@ export function MentorChat({
 
   const hasHistory = messages.length > 0 || streaming !== null;
 
-  if (editToken === null) return null;
+  if (!canEdit) return null;
 
   return (
+
     <div className="flex flex-col gap-4">
       {loadingHistory ? (
         <p className="flex items-center gap-2 text-sm text-ink-muted">
