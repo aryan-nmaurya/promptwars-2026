@@ -40,6 +40,8 @@ knows that exact project — its title, stack, roadmap, and what's already done.
 | **Feasibility scoring** | `Idea.feasibility` + [`web/components/IdeaPicker.tsx`](web/components/IdeaPicker.tsx) | 1–10 score, shown as a number *and* a word, never colour alone |
 | **Shareable without login** | `Project.id` via `new_id()` in [`api/app/models.py`](api/app/models.py) | Random URL-safe token primary keys — public but not enumerable |
 | **Google service, visibly used** | `GeminiBadge` beside both AI actions | "Powered by Gemini" on idea generation and on mentor answers |
+| **Honest degradation** | [`api/app/services/fallback.py`](api/app/services/fallback.py) + [`web/components/FallbackBanner.tsx`](web/components/FallbackBanner.tsx) | When every model fails, the seeded project is served and the UI says so rather than passing it off as live |
+| **Streamed mentor answers** | [`api/app/routers/mentor.py`](api/app/routers/mentor.py) `POST .../mentor/stream` + [`web/lib/stream.ts`](web/lib/stream.ts) | Server-sent events, rendered as sanitized markdown |
 
 ### Google Gemini — the two visible features
 
@@ -99,6 +101,33 @@ Three decisions worth calling out:
 
 ---
 
+## Operational notes
+
+**Gemini free-tier quota is 20 requests per day, per model.** This is the single
+biggest demo risk. Two mitigations are built in:
+
+- `GEMINI_MODELS` lists five verified models tried in order. Quota is counted
+  per model, so the chain raises the practical ceiling to roughly 100 requests
+  per day. Exhausted models return 429 in under a second, so falling through
+  them is cheap.
+- When the whole chain fails, the seeded example project is served and the UI
+  shows a **Fallback mode** banner. The demo degrades; it never dies.
+
+`/projects/demo-project-2026` is pre-seeded and needs no Gemini call at all, so
+it always works.
+
+**Timeouts.** Idea generation runs ~6s from Vercel; roadmap generation is
+heavier and has exceeded 8s, so the per-model budget is 20s with a 45s ceiling
+across the whole chain — inside `vercel.json`'s `maxDuration` of 60. Timeouts
+are never retried: a model that ran out of time is slow, not unlucky, and
+retrying it spends the budget the next model needs.
+
+**Local development is slower than production.** The Vercel function sits in
+`iad1`, beside Google's endpoint; a laptop outside the US sees roughly three
+times the latency. Raise `GEMINI_TIMEOUT_SECONDS` in your local `.env`.
+
+---
+
 ## Setup
 
 Node 20+, Python 3.12, and a Postgres connection string.
@@ -148,10 +177,12 @@ npm run dev
 cd api && source .venv/bin/activate && pytest
 ```
 
-**43 tests, no infrastructure required** — they run on in-memory SQLite and a
-stubbed Gemini, so `pytest` works offline. Every endpoint has at least one
-happy-path and one failure-path test, plus tests for the core logic: model
-fallback, mentor grounding, offline fallbacks, cascade deletes, and id opacity.
+**69 tests, no infrastructure required** — they run on in-memory SQLite and a
+stubbed Gemini, so `pytest` works offline. Every endpoint has a happy-path and a
+failure-path test, plus the core logic: model fallthrough, timeouts not being
+retried, the overall budget ceiling, prompt building and injection stripping,
+response parsing and wrong-schema rejection, mentor grounding, SSE streaming,
+session-vs-IP rate limiting, cascade deletes, and id opacity.
 
 ```bash
 cd web && npx tsc --noEmit    # strict, zero `any`

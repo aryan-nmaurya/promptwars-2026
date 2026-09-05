@@ -45,7 +45,10 @@ Add under **Settings → Environment Variables**. Tick **Production**,
 | `DATABASE_URL` | `postgresql://…` | Paste the **pooled** connection string verbatim — hostname with `-pooler`, or port `6543`. `sslmode`, `channel_binding` and `pgbouncer` params are handled in code, as is PgBouncer's prepared-statement problem. Using the *direct* (non-pooled) URL will exhaust `max_connections` under load. |
 | `ALLOWED_ORIGINS` | `https://promptwars-web.vercel.app` | Fill in after Project 2 exists — see the second pass below. |
 | `ENV` | `production` | Use `preview` on the Preview environment if you want richer errors there. |
-| `GOOGLE_API_KEY` | *your key* | Optional. Production + Preview only. Never add this to the web project. |
+| `GOOGLE_API_KEY` | *your key* | Required for AI features. Production + Preview only, stored as a Secret. **Never add this to the web project.** |
+| `GEMINI_MODELS` | *optional* | Comma-separated, tried in order. Defaults to five verified models. Free-tier quota is 20/day **per model**, so more models means more daily headroom. |
+| `GEMINI_TIMEOUT_SECONDS` | *optional* | Per-model budget, default 20. |
+| `GEMINI_BUDGET_SECONDS` | *optional* | Ceiling across the whole chain, default 45, under `maxDuration` 60. |
 
 If you use **Vercel Postgres / Neon**: open the **Storage** tab, create the
 database, and connect it to this project — it injects `DATABASE_URL` and
@@ -131,6 +134,9 @@ The API cannot know the web URL until the web project exists, so finish here:
 - [ ] Web home page shows the green card
 - [ ] No secret exists in any `NEXT_PUBLIC_*` variable
 - [ ] LIVE URLS filled into `README.md`
+- [ ] `GOOGLE_API_KEY` set on the API project only, as a Secret
+- [ ] Gemini quota has headroom for the demo (20/day per model — check before presenting)
+- [ ] `/projects/demo-project-2026` loads, as the no-Gemini fallback for the walkthrough
 
 ---
 
@@ -144,6 +150,9 @@ The API cannot know the web URL until the web project exists, so finish here:
 | `ModuleNotFoundError: app` | Wrong root directory | Root Directory is `api`, not the repo root |
 | Postgres "too many connections" | A pool crept back in | `api/app/db.py` must keep `poolclass=NullPool` |
 | Wrong Python version | `.python-version` missing | `api/.python-version` must contain `3.12` |
+| Everything shows "Fallback mode" | Gemini quota exhausted, or every model failed | Free tier is 20 requests/day **per model**. Check Runtime Logs for `RESOURCE_EXHAUSTED`. Add more models to `GEMINI_MODELS`, or enable billing on the Google Cloud project. The demo still works — `/projects/demo-project-2026` needs no Gemini call. |
+| Roadmap generation falls back but ideas work | Roadmap is a heavier call and hit the per-model timeout | Raise `GEMINI_TIMEOUT_SECONDS`; keep `GEMINI_BUDGET_SECONDS` under `maxDuration` |
+| API function times out at 60s | Model chain longer than the budget allows | `GEMINI_BUDGET_SECONDS` must stay below `vercel.json`'s `maxDuration` |
 | Web build fails on types | A real type error | Fix the type. Do not set `ignoreBuildErrors: true`. |
 | `GET /app/main.py` returns your source | `vercel.json` used `rewrites` | Vercel checks the filesystem **before** `rewrites`, so every non-function file shadows the catch-all and is served as a static asset. Use `routes`, which runs first. This repo already does. |
 | CLI deploy 404s everything, build takes ~1s | `vercel deploy` run from inside `api/` | The CLI uploads the current directory **and** the project then applies `rootDirectory: api` on top, so the effective root becomes `api/api/` — no `requirements.txt`, no function, just static files. Deploy with `git push` instead; that applies the root directory exactly once. |

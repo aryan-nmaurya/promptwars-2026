@@ -60,7 +60,9 @@ export function IdeaPicker({
             className="flex flex-col gap-3 rounded-card border border-surface-border bg-surface p-5"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <h3 className="text-lg font-semibold text-ink">{idea.title}</h3>
+              <h2 className="font-display text-lg font-bold tracking-tight text-ink">
+                {idea.title}
+              </h2>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className="font-mono text-xs text-ink-muted">
                   Feasibility{" "}
@@ -87,16 +89,16 @@ export function IdeaPicker({
             <p className="text-sm text-ink">{idea.summary}</p>
 
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
                 Problem it solves
-              </h4>
+              </h3>
               <p className="mt-1 text-sm text-ink-muted">{idea.problem_solved}</p>
             </div>
 
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
                 Suggested stack
-              </h4>
+              </h3>
               <ul className="mt-1.5 flex flex-wrap gap-1.5">
                 {idea.tech_stack.map((tech) => (
                   <li
