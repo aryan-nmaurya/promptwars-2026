@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 GENERIC_MESSAGE = "Internal server error"
 
 
-def _error(status_code: int, message: str) -> JSONResponse:
-    return JSONResponse(status_code=status_code, content={"error": message})
+def _error(
+    status_code: int, message: str, *, headers: dict[str, str] | None = None
+) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"error": message}, headers=headers)
 
 
 async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -34,7 +36,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
         message = GENERIC_MESSAGE
     else:
         logger.info("HTTP %s on %s: %s", exc.status_code, request.url.path, exc.detail)
-    return _error(exc.status_code, message)
+    return _error(exc.status_code, message, headers=exc.headers)
 
 
 async def validation_exception_handler(

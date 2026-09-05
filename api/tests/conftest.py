@@ -35,6 +35,7 @@ from app.ratelimit import reset_rate_limit  # noqa: E402
 from app.routers.ideas import reset_ideas_cache  # noqa: E402
 from app.services.gemini import (  # noqa: E402
     GeminiUnavailable,
+    GeneratedEvaluation,
     GeneratedIdea,
     GeneratedStep,
 )  # noqa: E402
@@ -58,24 +59,82 @@ class StubGemini:
         return [
             GeneratedIdea(
                 title=f"Idea {n} for {interests}",
-                summary="A stubbed summary.",
-                problem_solved="A stubbed problem.",
+                summary="A useful stubbed project summary.",
+                problem_solved="A meaningful stubbed student problem.",
                 feasibility=7 + n,
                 tech_stack=[skills, "FastAPI"],
+                core_features=[
+                    "Create and save records",
+                    "List saved records",
+                    "Update an existing record",
+                    "Show validation errors",
+                ],
+                stretch_goals=["Add optional notifications"],
             )
             for n in range(3)
         ]
 
     async def generate_roadmap(
-        self, title: str, summary: str, tech_stack: list[str], skills: str
+        self,
+        title: str,
+        summary: str,
+        tech_stack: list[str],
+        skills: str,
+        core_features: list[str] | None = None,
     ) -> list[GeneratedStep]:
         self.calls.append("roadmap")
         if self.fail:
             raise GeminiUnavailable("stubbed failure")
         return [
-            GeneratedStep(phase="Phase 1: Foundation", title="Set up repo", detail="d"),
-            GeneratedStep(phase="Phase 2: Core build", title="Build it", detail="d"),
+            GeneratedStep(
+                phase=f"Phase {phase}: {name}",
+                title=f"Complete step {phase}.{number}",
+                detail="Complete and verify this concrete roadmap action.",
+            )
+            for phase, name in enumerate(
+                ("Foundation", "Core build", "Verification", "Delivery"), start=1
+            )
+            for number in range(1, 4)
         ]
+
+    async def evaluate_repository(
+        self, *, plan: str, repository_evidence: str, deterministic_summary: str
+    ) -> GeneratedEvaluation:
+        self.calls.append("evaluate")
+        if self.fail:
+            raise GeminiUnavailable("stubbed failure")
+        return GeneratedEvaluation.model_validate(
+            {
+                "planned_vs_built": [
+                    {
+                        "planned_item": f"feature {index}",
+                        "status": "implemented",
+                        "confidence": 0.9,
+                        "evidence": [
+                            {
+                                "path": "app/routes.py",
+                                "reason": "The implementation route handles this workflow.",
+                            }
+                        ],
+                    }
+                    for index in range(1, 5)
+                ],
+                "scores": {
+                    "architecture": 70,
+                    "code_quality": 75,
+                    "testing": 60,
+                    "documentation": 80,
+                    "security": 70,
+                },
+                "top_fixes": [
+                    {
+                        "title": "Add integration coverage",
+                        "why": "The main workflow needs regression protection.",
+                        "how": "Add one success and one failure-path integration test.",
+                    }
+                ],
+            }
+        )
 
     async def stream_answer(self, *, context: str, question: str):  # type: ignore[no-untyped-def]
         self.calls.append("stream")

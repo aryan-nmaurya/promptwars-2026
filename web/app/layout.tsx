@@ -32,7 +32,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 const DESCRIPTION =
-  "Turn your interests and skills into a scoped final-year project — three AI-generated ideas with feasibility scores, a phased roadmap you tick off, and a mentor that knows your exact project.";
+    "Turn your interests and skills into a scoped final-year project, then compare the plan with evidence in your GitHub repository.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://promptwars-web.vercel.app"),
@@ -89,7 +89,7 @@ export default function RootLayout({
               href="/projects"
               className="rounded font-mono text-xs uppercase tracking-widest text-ink-muted underline-offset-4 hover:text-ink hover:underline"
             >
-              Browse projects
+              My projects
             </Link>
           </nav>
         </header>
@@ -104,7 +104,7 @@ export default function RootLayout({
 
         <footer className="border-t border-surface-border">
           <p className="mx-auto w-full max-w-4xl px-4 py-4 font-mono text-xs text-ink-muted sm:px-6">
-            IdeaForge — ideas and mentoring powered by Google Gemini.
+            IdeaForge — plan, build, and prove your project with Google Gemini.
           </p>
         </footer>
       </body>

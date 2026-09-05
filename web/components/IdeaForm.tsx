@@ -24,7 +24,14 @@ export function IdeaForm() {
     setPending(true);
     setError(null);
     try {
-      const set = await api.post<IdeaSet>("/ideas", { interests, skills });
+      // Generation falls through up to five models under the backend's 45s
+      // budget, so the browser must outwait it rather than abort a request
+      // that is still running and leave an orphaned idea set behind.
+      const set = await api.post<IdeaSet>(
+        "/ideas",
+        { interests, skills },
+        { timeoutMs: 55_000 },
+      );
       router.push(`/ideas/${set.id}`);
     } catch (cause: unknown) {
       setError(toErrorMessage(cause));

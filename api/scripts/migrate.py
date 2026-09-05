@@ -33,6 +33,11 @@ logger = logging.getLogger("migrate")
 ADDED_COLUMNS: list[tuple[str, str, str]] = [
     ("idea_sets", "used_fallback", "BOOLEAN NOT NULL DEFAULT FALSE"),
     ("projects", "used_fallback", "BOOLEAN NOT NULL DEFAULT FALSE"),
+    ("ideas", "core_features", "JSON NOT NULL DEFAULT '[]'"),
+    ("ideas", "stretch_goals", "JSON NOT NULL DEFAULT '[]'"),
+    ("projects", "core_features", "JSON NOT NULL DEFAULT '[]'"),
+    ("projects", "stretch_goals", "JSON NOT NULL DEFAULT '[]'"),
+    ("projects", "edit_token_hash", "VARCHAR(64)"),
 ]
 
 

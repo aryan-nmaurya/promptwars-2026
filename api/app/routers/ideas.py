@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.cache import TTLCache, cache_key
 from app.config import get_settings
@@ -28,7 +28,7 @@ router = APIRouter(
 )
 
 # Generation is the expensive call - keep it tighter than the read endpoints.
-ai_limit = Depends(RateLimiter(limit=12, window_seconds=60.0))
+ai_limit = Depends(RateLimiter(limit=12, window_seconds=60.0, scope="ideas"))
 IdeaSetId = Annotated[str, Path(min_length=8, max_length=32)]
 
 #: Repeated identical submissions inside the window reuse the same generation
@@ -44,14 +44,15 @@ def reset_ideas_cache() -> None:
 
 
 async def _generate(
-    gemini: GeminiDep, interests: str, skills: str
+    gemini: GeminiDep, interests: str, skills: str, *, refresh: bool = False
 ) -> tuple[list[GeneratedIdea], bool]:
     """Return (ideas, used_fallback), preferring a cached generation."""
     key = cache_key(interests, skills)
-    cached = _ideas_cache.get(key)
-    if cached is not None:
-        logger.info("Idea cache hit key=%s", key)
-        return cached, False
+    if not refresh:
+        cached = _ideas_cache.get(key)
+        if cached is not None:
+            logger.info("Idea cache hit key=%s", key)
+            return cached, False
 
     try:
         generated = await gemini.generate_ideas(interests, skills)
@@ -71,7 +72,10 @@ async def _generate(
     summary="Generate three tailored project ideas",
 )
 async def create_idea_set(
-    payload: IdeaSetCreate, session: SessionDep, gemini: GeminiDep
+    payload: IdeaSetCreate,
+    session: SessionDep,
+    gemini: GeminiDep,
+    refresh: Annotated[bool, Query(description="Bypass a prior cached generation")] = False,
 ) -> IdeaSetRead:
     """Ask Gemini for ideas, persist them, and return the set.
 
@@ -79,7 +83,9 @@ async def create_idea_set(
     the student sees a real project rather than a dead screen. The set records
     which happened so the UI can say so.
     """
-    generated, used_fallback = await _generate(gemini, payload.interests, payload.skills)
+    generated, used_fallback = await _generate(
+        gemini, payload.interests, payload.skills, refresh=refresh
+    )
 
     idea_set = IdeaSet(
         interests=payload.interests, skills=payload.skills, used_fallback=used_fallback
@@ -93,6 +99,8 @@ async def create_idea_set(
                 problem_solved=item.problem_solved,
                 feasibility=item.feasibility,
                 tech_stack=item.tech_stack,
+                core_features=item.core_features,
+                stretch_goals=item.stretch_goals,
             )
         )
     session.add(idea_set)

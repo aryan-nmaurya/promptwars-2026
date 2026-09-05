@@ -22,6 +22,7 @@ async def test_migration_creates_every_table(engine) -> None:  # type: ignore[no
         "projects",
         "roadmap_steps",
         "mentor_messages",
+        "evaluations",
     }
 
 

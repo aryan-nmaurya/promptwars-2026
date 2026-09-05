@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PhaseReveal } from "@/components/PhaseReveal";
 import { ProgressBar, StatusRegion } from "@/components/ui";
 import { api, groupByPhase, toErrorMessage, type RoadmapStep } from "@/lib/api";
+import { projectEditHeaders, useProjectEditToken } from "@/lib/project-access";
 
 /**
  * Optimistic checklist: the box flips immediately and rolls back if the
@@ -17,6 +18,7 @@ export function RoadmapChecklist({
   projectId: string;
   initialSteps: RoadmapStep[];
 }) {
+  const editToken = useProjectEditToken(projectId);
   const [steps, setSteps] = useState(initialSteps);
   const [error, setError] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -24,15 +26,18 @@ export function RoadmapChecklist({
   const done = steps.filter((s) => s.is_done).length;
 
   async function toggle(step: RoadmapStep, next: boolean): Promise<void> {
+    if (editToken === null) return;
     setSteps((current) =>
       current.map((s) => (s.id === step.id ? { ...s, is_done: next } : s)),
     );
     setError(null);
     setAnnouncement(`${step.title} marked ${next ? "done" : "not done"}.`);
     try {
-      await api.patch<RoadmapStep>(`/projects/${projectId}/steps/${step.id}`, {
-        is_done: next,
-      });
+      await api.patch<RoadmapStep>(
+        `/projects/${projectId}/steps/${step.id}`,
+        { is_done: next },
+        { headers: projectEditHeaders(editToken) },
+      );
     } catch (cause: unknown) {
       setSteps((current) =>
         current.map((s) => (s.id === step.id ? { ...s, is_done: !next } : s)),
@@ -45,6 +50,12 @@ export function RoadmapChecklist({
   return (
     <div className="flex flex-col gap-5">
       <ProgressBar done={done} total={steps.length} label="Roadmap progress" />
+
+      {editToken === null ? (
+        <p className="rounded-md border border-surface-border bg-surface-2 px-3 py-2 text-xs text-ink-muted">
+          This is a read-only roadmap. Only its owner can update progress.
+        </p>
+      ) : null}
 
       {groupByPhase(steps).map((group, index) => (
         <PhaseReveal key={group.phase} index={index}>
@@ -63,12 +74,20 @@ export function RoadmapChecklist({
             <ul className="flex flex-col gap-1">
               {group.steps.map((step) => (
                 <li key={step.id}>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-surface-border bg-surface p-3 transition-colors hover:border-control-border">
+                  <label
+                    className={[
+                      "flex items-start gap-3 rounded-md border border-surface-border bg-surface p-3 transition-colors",
+                      editToken === null
+                        ? "cursor-default"
+                        : "cursor-pointer hover:border-control-border",
+                    ].join(" ")}
+                  >
                     <input
                       type="checkbox"
                       checked={step.is_done}
                       onChange={(e) => void toggle(step, e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-amber"
+                      disabled={editToken === null}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-amber disabled:opacity-70"
                     />
                     <span className="flex flex-col gap-0.5">
                       <span

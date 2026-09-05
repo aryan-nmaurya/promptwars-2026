@@ -1,12 +1,12 @@
 """IdeaForge schema.
 
-Five tables covering the whole demo path: a student's generation request
+Six tables covering the whole product loop: a student's generation request
 (`IdeaSet`) yields three `Idea` rows; choosing one creates a `Project`, which
-owns its `RoadmapStep` list and its `MentorMessage` history.
+owns its `RoadmapStep` list, `MentorMessage` history, and repository evaluations.
 
 Primary keys are random URL-safe tokens, not sequential integers. Project URLs
-are shared with professors and there is no auth, so sequential ids would let
-anyone enumerate every student's project by counting.
+are shared read-only with professors, so sequential ids would let anyone
+enumerate every student's project by counting. A separate capability protects writes.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -77,6 +78,9 @@ class Idea(Base):
     problem_solved: Mapped[str] = mapped_column(Text, nullable=False, default="")
     feasibility: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tech_stack: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    # The frozen scope that a later repository evaluation compares against.
+    core_features: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    stretch_goals: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     idea_set: Mapped[IdeaSet] = relationship(back_populates="ideas")
 
@@ -104,8 +108,13 @@ class Project(Base):
     problem_solved: Mapped[str] = mapped_column(Text, nullable=False, default="")
     feasibility: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tech_stack: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    core_features: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    stretch_goals: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     interests: Mapped[str] = mapped_column(Text, nullable=False, default="")
     skills: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Only a SHA-256 digest is stored. The raw capability is returned once to
+    # the creating browser and is required for every mutation and AI call.
+    edit_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -125,6 +134,13 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="MentorMessage.created_at",
         lazy="selectin",
+    )
+    evaluations: Mapped[list[Evaluation]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="Evaluation.created_at",
+        passive_deletes=True,
+        lazy="raise",
     )
 
 
@@ -170,3 +186,36 @@ class MentorMessage(Base):
     project: Mapped[Project] = relationship(back_populates="messages")
 
     __table_args__ = (Index("ix_messages_project_created", "project_id", "created_at"),)
+
+
+class Evaluation(Base):
+    """Immutable analysis of one repository commit against a project plan."""
+
+    __tablename__ = "evaluations"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    repository_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    repository_full_name: Mapped[str] = mapped_column(String(300), nullable=False)
+    commit_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    evaluator_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    overall_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    project: Mapped[Project] = relationship(back_populates="evaluations")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "repository_full_name",
+            "commit_sha",
+            "evaluator_version",
+            name="uq_evaluations_project_repo_commit_version",
+        ),
+        Index("ix_evaluations_project_created", "project_id", "created_at"),
+    )

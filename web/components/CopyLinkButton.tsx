@@ -15,8 +15,9 @@ export function CopyLinkButton() {
 
   async function copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      setMessage("Link copied — send it to your professor.");
+      const shareUrl = `${window.location.origin}${window.location.pathname}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setMessage("Read-only link copied — send it to your professor.");
     } catch {
       setMessage("Could not copy automatically. Copy the address bar instead.");
     }
@@ -27,7 +28,7 @@ export function CopyLinkButton() {
   return (
     <div className="flex flex-col gap-1.5">
       <Button variant="secondary" size="sm" onClick={() => void copy()}>
-        Copy shareable link
+        Copy read-only link
       </Button>
       <StatusRegion className="min-h-[1rem]">
         {message ? (

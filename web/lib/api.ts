@@ -138,8 +138,10 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const forwardAbort = () => controller.abort();
   if (signal) {
-    signal.addEventListener("abort", () => controller.abort(), { once: true });
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", forwardAbort, { once: true });
   }
 
   let response: Response;
@@ -168,6 +170,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     );
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
   }
 
   if (response.status === 204) return null as T;
@@ -236,6 +239,10 @@ export interface Idea {
   problem_solved: string;
   feasibility: number;
   tech_stack: string[];
+  /** Features the student is committing to deliver. */
+  core_features: string[];
+  /** Explicitly optional ideas that should not jeopardise the core build. */
+  stretch_goals: string[];
 }
 
 export interface IdeaSet {
@@ -264,14 +271,21 @@ export interface Project {
   problem_solved: string;
   feasibility: number;
   tech_stack: string[];
-  interests: string;
-  skills: string;
+  core_features: string[];
+  stretch_goals: string[];
   created_at: string;
   /** True when Gemini was unreachable and the seeded roadmap was served. */
   used_fallback: boolean;
   steps: RoadmapStep[];
   steps_total: number;
   steps_done: number;
+  latest_evaluation: Evaluation | null;
+}
+
+/** Returned only when a project is created. The token is never part of a share URL. */
+export interface ProjectCreateResponse {
+  project: Project;
+  edit_token: string;
 }
 
 export interface ProjectSummary {
@@ -293,6 +307,67 @@ export interface MentorMessage {
 export interface MentorReply {
   question: MentorMessage;
   answer: MentorMessage;
+}
+
+export type EvaluationStatus =
+  | "implemented"
+  | "partial"
+  | "not_found"
+  | "insufficient_evidence";
+
+export interface EvaluationEvidence {
+  path: string;
+  reason: string;
+}
+
+export interface PlannedVsBuiltItem {
+  planned_item: string;
+  status: EvaluationStatus;
+  confidence: number;
+  evidence: EvaluationEvidence[];
+  gap: string | null;
+}
+
+export interface EvaluationFix {
+  title: string;
+  why: string;
+  how: string;
+}
+
+export interface EvaluationScores {
+  feature_completion: number;
+  architecture: number;
+  code_quality: number;
+  testing: number;
+  documentation: number;
+  security: number;
+}
+
+export interface EvaluationRepository {
+  url: string;
+  full_name: string;
+  commit_sha: string;
+  default_branch: string;
+}
+
+export interface EvaluationCoverage {
+  tree_complete: boolean;
+  files_considered: number;
+  files_analyzed: number;
+  bytes_analyzed: number;
+}
+
+/** Evidence-backed static comparison of the frozen plan and one repository commit. */
+export interface Evaluation {
+  id: string;
+  repository: EvaluationRepository;
+  overall_score: number;
+  scores: EvaluationScores;
+  planned_vs_built: PlannedVsBuiltItem[];
+  top_fixes: EvaluationFix[];
+  coverage: EvaluationCoverage;
+  limitations: string[];
+  created_at: string;
 }
 
 /** Groups roadmap steps by phase, preserving server order. */

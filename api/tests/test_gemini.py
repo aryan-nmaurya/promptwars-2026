@@ -59,27 +59,55 @@ def _service(
     return service, fake
 
 
-async def test_falls_through_to_the_second_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    payload = GeneratedIdeas.model_validate(
+def _ideas_payload(count: int = 3) -> GeneratedIdeas:
+    return GeneratedIdeas.model_validate(
         {
             "ideas": [
                 {
-                    "title": "t",
-                    "summary": "s",
-                    "problem_solved": "p",
-                    "feasibility": 5,
+                    "title": f"Project idea {number}",
+                    "summary": "A complete and useful project summary.",
+                    "problem_solved": "A specific student problem.",
+                    "feasibility": number + 5,
                     "tech_stack": ["python"],
+                    "core_features": [
+                        "Create records",
+                        "List records",
+                        "Update records",
+                        "Validate user input",
+                    ],
+                    "stretch_goals": [],
                 }
+                for number in range(count)
             ]
         }
     )
+
+
+def _roadmap_payload() -> GeneratedRoadmap:
+    return GeneratedRoadmap.model_validate(
+        {
+            "steps": [
+                {
+                    "phase": f"Phase {phase}: Work",
+                    "title": f"Complete task {phase}.{number}",
+                    "detail": "Complete and verify this concrete task.",
+                }
+                for phase in range(1, 5)
+                for number in range(1, 4)
+            ]
+        }
+    )
+
+
+async def test_falls_through_to_the_second_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    payload = _ideas_payload()
     service, fake = _service({"model-a"}, payload)
 
     ideas = await service.generate_ideas("healthcare", "python")
 
     # One retry per model: a is tried twice before b is reached.
     assert fake.attempts == ["model-a", "model-a", "model-b"]
-    assert ideas[0].title == "t"
+    assert ideas[0].title == "Project idea 0"
 
 
 async def test_raises_when_every_model_fails() -> None:
@@ -119,9 +147,9 @@ def test_context_grounds_the_mentor_in_one_project() -> None:
 
     assert "Triage Bot" in context
     assert "FastAPI, React" in context
-    assert "Completed steps (1): Set up repo" in context
-    assert "Remaining steps (1): Design schema" in context
-    assert "user: hello" in context
+    assert "Completed steps (1):" in context and "Set up repo" in context
+    assert "Remaining steps (1):" in context and "Design schema" in context
+    assert "Conversation user:" in context and "hello" in context
 
 
 def test_fallback_serves_the_seeded_example_project() -> None:
@@ -153,19 +181,7 @@ def test_fallback_answer_never_fabricates_guidance() -> None:
 
 async def test_prompt_fences_student_input_and_strips_injection() -> None:
     """The prompt sent to Gemini must contain sanitized, delimited input."""
-    payload = GeneratedIdeas.model_validate(
-        {
-            "ideas": [
-                {
-                    "title": "t",
-                    "summary": "s",
-                    "problem_solved": "p",
-                    "feasibility": 5,
-                    "tech_stack": ["python"],
-                }
-            ]
-        }
-    )
+    payload = _ideas_payload()
     service, fake = _service(set(), payload)
 
     await service.generate_ideas(
@@ -192,13 +208,15 @@ async def test_system_instruction_tells_the_model_to_distrust_fenced_text() -> N
 
 
 async def test_roadmap_prompt_carries_the_project_context() -> None:
-    payload = GeneratedRoadmap.model_validate(
-        {"steps": [{"phase": "Phase 1", "title": "t", "detail": "d"}]}
-    )
+    payload = _roadmap_payload()
     service, fake = _service(set(), payload)
 
     await service.generate_roadmap(
-        title="Triage Bot", summary="Sorts patients", tech_stack=["FastAPI"], skills="python"
+        title="Triage Bot",
+        summary="Sorts patients",
+        tech_stack=["FastAPI"],
+        skills="python",
+        core_features=["Route patients safely"],
     )
 
     prompt = fake.prompts[0]
@@ -211,33 +229,18 @@ async def test_roadmap_prompt_carries_the_project_context() -> None:
 
 
 async def test_parses_a_well_formed_structured_response() -> None:
-    payload = GeneratedIdeas.model_validate(
-        {
-            "ideas": [
-                {
-                    "title": f"Idea {n}",
-                    "summary": "s",
-                    "problem_solved": "p",
-                    "feasibility": n + 1,
-                    "tech_stack": ["python"],
-                }
-                for n in range(5)
-            ]
-        }
-    )
+    payload = _ideas_payload()
     service, _ = _service(set(), payload)
 
     ideas = await service.generate_ideas("healthcare", "python")
 
-    assert len(ideas) == 3, "response is trimmed to exactly IDEA_COUNT"
-    assert ideas[0].title == "Idea 0"
+    assert len(ideas) == 3
+    assert ideas[0].title == "Project idea 0"
 
 
 async def test_wrong_schema_type_is_a_parse_error_not_a_crash() -> None:
     """A roadmap payload returned for an ideas call must be rejected cleanly."""
-    wrong = GeneratedRoadmap.model_validate(
-        {"steps": [{"phase": "Phase 1", "title": "t", "detail": "d"}]}
-    )
+    wrong = _roadmap_payload()
     service, _ = _service(set(), wrong)
 
     with pytest.raises(GeminiParseError):
@@ -264,19 +267,7 @@ async def test_timeout_moves_on_instead_of_retrying_the_same_model() -> None:
                 raise TimeoutError
             return await super().generate_content(model=model, contents=contents, config=config)
 
-    payload = GeneratedIdeas.model_validate(
-        {
-            "ideas": [
-                {
-                    "title": "t",
-                    "summary": "s",
-                    "problem_solved": "p",
-                    "feasibility": 5,
-                    "tech_stack": ["python"],
-                }
-            ]
-        }
-    )
+    payload = _ideas_payload()
     service = GeminiService(api_key="k", models=["model-a", "model-b"], timeout=5.0, retries=1)
     fake = _SlowThenFast(set(), payload)
     service._client = type("C", (), {"aio": type("A", (), {"models": fake})()})()  # noqa: SLF001

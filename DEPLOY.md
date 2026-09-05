@@ -46,6 +46,7 @@ Add under **Settings → Environment Variables**. Tick **Production**,
 | `ALLOWED_ORIGINS` | `https://promptwars-web.vercel.app` | Fill in after Project 2 exists — see the second pass below. |
 | `ENV` | `production` | Use `preview` on the Preview environment if you want richer errors there. |
 | `GOOGLE_API_KEY` | *your key* | Required for AI features. Production + Preview only, stored as a Secret. **Never add this to the web project.** |
+| `GITHUB_TOKEN` | *optional* | Raises the API allowance for public-repository evaluation. Use a fine-grained/read-only token and never add it to the web project. |
 | `GEMINI_MODELS` | *optional* | Comma-separated, tried in order. Defaults to five verified models. Free-tier quota is 20/day **per model**, so more models means more daily headroom. |
 | `GEMINI_TIMEOUT_SECONDS` | *optional* | Per-model budget, default 20. |
 | `GEMINI_BUDGET_SECONDS` | *optional* | Ceiling across the whole chain, default 45, under `maxDuration` 60. |
@@ -72,10 +73,11 @@ database once:
 ```bash
 cd api
 source .venv/bin/activate
+DATABASE_URL="<the production URL>" python scripts/migrate.py
 DATABASE_URL="<the production URL>" python scripts/seed.py
 ```
 
-Idempotent — safe to re-run whenever you add a model.
+Both commands are idempotent. Re-run the migration whenever the schema changes.
 
 ---
 
@@ -128,7 +130,8 @@ The API cannot know the web URL until the web project exists, so finish here:
 ## Deploy checklist
 
 - [ ] API `/health` returns `{"status":"ok","db":true}`
-- [ ] `python scripts/seed.py` has been run against the production database
+- [ ] `python scripts/migrate.py` has been run against the production database
+- [ ] `python scripts/seed.py` has been run if the stable demo project is wanted
 - [ ] `ALLOWED_ORIGINS` on the API contains the exact web production origin
 - [ ] API redeployed *after* `ALLOWED_ORIGINS` was set
 - [ ] Web home page shows the green card
@@ -136,6 +139,7 @@ The API cannot know the web URL until the web project exists, so finish here:
 - [ ] LIVE URLS filled into `README.md`
 - [ ] `GOOGLE_API_KEY` set on the API project only, as a Secret
 - [ ] Gemini quota has headroom for the demo (20/day per model — check before presenting)
+- [ ] A new project can evaluate a small public GitHub repository and show Planned vs Built evidence
 - [ ] `/projects/demo-project-2026` loads, as the no-Gemini fallback for the walkthrough
 
 ---

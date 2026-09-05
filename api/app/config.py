@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     # Optional third-party key. Server-side only - never expose to the browser.
     GOOGLE_API_KEY: str | None = None
+    # Optional server-side token for higher GitHub API limits. Public
+    # repositories still work without it; the token never reaches the browser.
+    GITHUB_TOKEN: str | None = None
 
     # Tried in order; the first that answers wins. Measured against this key:
     # gemini-2.5-* is 404 for new keys, *-latest aliases return 503, and

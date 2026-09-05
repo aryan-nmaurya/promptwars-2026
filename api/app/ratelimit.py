@@ -82,6 +82,7 @@ class RateLimiter:
         limit: int = 60,
         window_seconds: float = 60.0,
         ip_limit: int | None = None,
+        scope: str = "default",
     ) -> None:
         if limit < 1:
             raise ValueError("limit must be >= 1")
@@ -90,11 +91,12 @@ class RateLimiter:
         # Default: five sessions' worth, so a shared campus IP is not the
         # binding constraint for a single well-behaved student.
         self.ip_limit = ip_limit if ip_limit is not None else limit * 5
+        self.scope = scope
 
     async def __call__(self, request: Request) -> None:
         for key, limit in (
-            (f"s:{session_id(request)}", self.limit),
-            (f"i:{client_ip(request)}", self.ip_limit),
+            (f"{self.scope}:s:{session_id(request)}", self.limit),
+            (f"{self.scope}:i:{client_ip(request)}", self.ip_limit),
         ):
             retry_after = _consume(key, limit, self.window)
             if retry_after is not None:

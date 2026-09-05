@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button, Spinner, StatusRegion } from "@/components/ui";
-import { api, toErrorMessage, type Idea, type IdeaSet, type Project } from "@/lib/api";
+import {
+  api,
+  toErrorMessage,
+  type Idea,
+  type IdeaSet,
+  type ProjectCreateResponse,
+} from "@/lib/api";
+import { rememberOwnedProject } from "@/lib/project-access";
 
 /** Feasibility shown as a number and a word, never colour alone. */
 function feasibilityLabel(score: number): string {
@@ -26,12 +33,17 @@ export function IdeaPicker({
   const [choosing, setChoosing] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busy = choosing !== null || regenerating;
 
   async function regenerate(): Promise<void> {
     setRegenerating(true);
     setError(null);
     try {
-      const set = await api.post<IdeaSet>("/ideas", { interests, skills });
+      const set = await api.post<IdeaSet>(
+        "/ideas",
+        { interests, skills },
+        { query: { refresh: true } },
+      );
       router.push(`/ideas/${set.id}`);
     } catch (cause: unknown) {
       setError(toErrorMessage(cause));
@@ -43,8 +55,13 @@ export function IdeaPicker({
     setChoosing(ideaId);
     setError(null);
     try {
-      const project = await api.post<Project>("/projects", { idea_id: ideaId });
-      router.push(`/projects/${project.id}`);
+      const created = await api.post<ProjectCreateResponse>(
+        "/projects",
+        { idea_id: ideaId },
+        { timeoutMs: 55_000 },
+      );
+      rememberOwnedProject(created.project, created.edit_token);
+      router.push(`/projects/${created.project.id}`);
     } catch (cause: unknown) {
       setError(toErrorMessage(cause));
       setChoosing(null);
@@ -95,6 +112,24 @@ export function IdeaPicker({
               <p className="mt-1 text-sm text-ink-muted">{idea.problem_solved}</p>
             </div>
 
+            {idea.core_features.length > 0 ? (
+              <div>
+                <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+                  Core deliverables
+                </h3>
+                <ul className="mt-1.5 grid gap-1 sm:grid-cols-2">
+                  {idea.core_features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2 text-xs text-ink">
+                      <span aria-hidden="true" className="text-amber">
+                        ✓
+                      </span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             <div>
               <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
                 Suggested stack
@@ -116,7 +151,7 @@ export function IdeaPicker({
                 onClick={() => void choose(idea.id)}
                 loading={choosing === idea.id}
                 loadingLabel="Building your roadmap"
-                disabled={choosing !== null}
+                disabled={busy}
               >
                 {choosing === idea.id ? "Building roadmap…" : "Choose this idea"}
               </Button>
@@ -132,7 +167,7 @@ export function IdeaPicker({
           onClick={() => void regenerate()}
           loading={regenerating}
           loadingLabel="Regenerating ideas"
-          disabled={choosing !== null}
+          disabled={busy}
         >
           {regenerating ? "Regenerating…" : "Regenerate ideas"}
         </Button>

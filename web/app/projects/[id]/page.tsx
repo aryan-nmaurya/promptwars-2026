@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 
+import { ClaimEditToken } from "@/components/ClaimEditToken";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
-import { ElapsedCounter } from "@/components/ElapsedCounter";
 import { FallbackBanner } from "@/components/FallbackBanner";
-import { MentorChat } from "@/components/MentorChat";
+import { OwnerMentorCard } from "@/components/OwnerMentorCard";
+import { ProjectAccessNotice } from "@/components/ProjectAccessNotice";
+import { RepositoryEvaluator } from "@/components/RepositoryEvaluator";
 import { RoadmapChecklist } from "@/components/RoadmapChecklist";
 import { Card, ErrorState } from "@/components/ui";
-import { ApiError, api, type MentorMessage, type Page, type Project } from "@/lib/api";
+import { ApiError, api, type Project } from "@/lib/api";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,13 +32,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
 
   let project: Project;
-  let history: Page<MentorMessage>;
   try {
-    // Two independent reads - fetch them concurrently, not one after the other.
-    [project, history] = await Promise.all([
-      api.get<Project>(`/projects/${id}`),
-      api.get<Page<MentorMessage>>(`/projects/${id}/mentor`),
-    ]);
+    project = await api.get<Project>(`/projects/${id}`);
   } catch (cause: unknown) {
     if (cause instanceof ApiError && cause.status === 404) notFound();
     return (
@@ -67,31 +64,82 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         </dl>
 
         <CopyLinkButton />
+        <ClaimEditToken project={project} />
+        <ProjectAccessNotice projectId={project.id} />
       </header>
 
       {project.used_fallback ? <FallbackBanner what="this roadmap" /> : null}
 
-      <Card title="The problem it solves" as="h2">
-        <p className="text-sm text-ink">{project.problem_solved}</p>
+      <RepositoryEvaluator
+        projectId={project.id}
+        initialEvaluation={project.latest_evaluation ?? null}
+      />
+
+      <Card
+        title="Scope contract"
+        as="h2"
+        description="The frozen plan your repository evaluation is measured against."
+      >
+        <div className="flex flex-col gap-5">
+          <div>
+            <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+              Problem to solve
+            </h3>
+            <p className="mt-1 text-sm text-ink">{project.problem_solved}</p>
+          </div>
+
+          <div>
+            <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+              Core deliverables
+            </h3>
+            {project.core_features.length > 0 ? (
+              <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                {project.core_features.map((feature) => (
+                  <li
+                    key={feature}
+                    className="flex items-start gap-2 rounded-md border border-surface-border bg-bg p-3 text-sm text-ink"
+                  >
+                    <span aria-hidden="true" className="text-amber">
+                      ✓
+                    </span>
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-sm text-ink-muted">No core deliverables recorded.</p>
+            )}
+          </div>
+
+          {project.stretch_goals.length > 0 ? (
+            <div>
+              <h3 className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+                Stretch goals · only after the core works
+              </h3>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {project.stretch_goals.map((goal) => (
+                  <li
+                    key={goal}
+                    className="rounded-full border border-surface-border bg-surface-2 px-3 py-1 text-xs text-ink-muted"
+                  >
+                    {goal}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
       </Card>
 
       <Card
         title="Your roadmap"
         as="h2"
-        description="Tick steps off as you finish them. Progress is saved to this URL."
+        description="A phased build plan with progress saved for the owner."
       >
         <RoadmapChecklist projectId={project.id} initialSteps={project.steps} />
       </Card>
 
-      <Card
-        title="Project mentor"
-        as="h2"
-        description="Grounded in this project's title, stack, roadmap and your progress."
-      >
-        <MentorChat projectId={project.id} initialMessages={history.items} />
-      </Card>
-
-      <ElapsedCounter since={project.created_at} />
+      <OwnerMentorCard projectId={project.id} />
     </div>
   );
 }

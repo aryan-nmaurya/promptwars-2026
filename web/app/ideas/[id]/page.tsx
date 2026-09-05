@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 
-import { ComparisonBlock } from "@/components/ComparisonBlock";
 import { FallbackBanner } from "@/components/FallbackBanner";
 import { IdeaPicker } from "@/components/IdeaPicker";
 import { ErrorState, GeminiBadge } from "@/components/ui";
@@ -47,10 +46,6 @@ export default async function IdeasPage({ params }: { params: Promise<{ id: stri
         interests={ideaSet.interests}
         skills={ideaSet.skills}
       />
-
-      {ideaSet.ideas.length > 0 ? (
-        <ComparisonBlock idea={ideaSet.ideas[0]!} stepCount={12} />
-      ) : null}
     </div>
   );
 }

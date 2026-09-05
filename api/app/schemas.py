@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 T = TypeVar("T")
 
@@ -73,6 +73,8 @@ class IdeaRead(ApiModel):
     problem_solved: str
     feasibility: int = Field(ge=0, le=10)
     tech_stack: list[str]
+    core_features: list[str] = Field(default_factory=list)
+    stretch_goals: list[str] = Field(default_factory=list)
 
 
 class IdeaSetRead(ApiModel):
@@ -91,6 +93,75 @@ class ProjectCreate(ApiModel):
     """Promote one generated idea into a project with a roadmap."""
 
     idea_id: NonEmpty
+
+
+class RepositoryEvaluate(ApiModel):
+    """A public GitHub repository to compare with the frozen project plan."""
+
+    github_url: Annotated[str, Field(min_length=19, max_length=500)]
+
+
+class RepositorySnapshot(ApiModel):
+    url: str
+    full_name: str
+    commit_sha: str
+    default_branch: str
+
+
+class EvaluationScores(ApiModel):
+    feature_completion: int = Field(ge=0, le=100)
+    architecture: int = Field(ge=0, le=100)
+    code_quality: int = Field(ge=0, le=100)
+    testing: int = Field(ge=0, le=100)
+    documentation: int = Field(ge=0, le=100)
+    security: int = Field(ge=0, le=100)
+
+
+class EvidenceReference(ApiModel):
+    path: Annotated[str, Field(min_length=1, max_length=500)]
+    reason: Annotated[str, Field(min_length=1, max_length=500)]
+
+
+class PlannedVsBuiltItem(ApiModel):
+    planned_item: Annotated[str, Field(min_length=1, max_length=300)]
+    status: Literal["implemented", "partial", "not_found", "insufficient_evidence"]
+    confidence: float = Field(ge=0, le=1)
+    evidence: list[EvidenceReference] = Field(default_factory=list, max_length=5)
+    gap: Annotated[str | None, Field(max_length=800)] = None
+
+    @model_validator(mode="after")
+    def evidence_matches_status(self) -> PlannedVsBuiltItem:
+        """Positive claims need evidence; gaps need an actionable explanation."""
+        if self.status in ("implemented", "partial") and not self.evidence:
+            raise ValueError("implemented and partial items require repository evidence")
+        if self.status != "implemented" and not self.gap:
+            raise ValueError("non-implemented items require a gap explanation")
+        return self
+
+
+class EvaluationFix(ApiModel):
+    title: Annotated[str, Field(min_length=1, max_length=200)]
+    why: Annotated[str, Field(min_length=1, max_length=500)]
+    how: Annotated[str, Field(min_length=1, max_length=800)]
+
+
+class EvaluationCoverage(ApiModel):
+    tree_complete: bool
+    files_considered: int = Field(ge=0)
+    files_analyzed: int = Field(ge=0)
+    bytes_analyzed: int = Field(ge=0)
+
+
+class EvaluationRead(ApiModel):
+    id: str
+    repository: RepositorySnapshot
+    overall_score: int = Field(ge=0, le=100)
+    scores: EvaluationScores
+    planned_vs_built: list[PlannedVsBuiltItem] = Field(min_length=1, max_length=12)
+    top_fixes: list[EvaluationFix] = Field(max_length=3)
+    coverage: EvaluationCoverage
+    limitations: list[str] = Field(default_factory=list, max_length=10)
+    created_at: datetime
 
 
 class RoadmapStepRead(ApiModel):
@@ -124,13 +195,21 @@ class ProjectRead(ApiModel):
     problem_solved: str
     feasibility: int
     tech_stack: list[str]
-    interests: str
-    skills: str
+    core_features: list[str] = Field(default_factory=list)
+    stretch_goals: list[str] = Field(default_factory=list)
     created_at: datetime
     used_fallback: bool = False
     steps: list[RoadmapStepRead]
     steps_total: int
     steps_done: int
+    latest_evaluation: EvaluationRead | None = None
+
+
+class ProjectCreated(ApiModel):
+    """Creation returns the raw edit capability exactly once."""
+
+    project: ProjectRead
+    edit_token: str
 
 
 # --- Mentor ------------------------------------------------------------------

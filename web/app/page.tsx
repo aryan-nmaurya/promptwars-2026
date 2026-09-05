@@ -2,9 +2,9 @@ import { IdeaForm } from "@/components/IdeaForm";
 import { Card } from "@/components/ui";
 
 const STEPS = [
-  { title: "Describe yourself", body: "Your interests and the skills you already have." },
-  { title: "Pick an idea", body: "Three tailored ideas, each scored for feasibility." },
-  { title: "Build it", body: "A phased roadmap you tick off, plus a mentor that knows your project." },
+  { title: "Scope it", body: "Choose a feasible idea with explicit core features and stretch goals." },
+  { title: "Build it", body: "Follow a phased roadmap and ask a mentor that knows your project." },
+  { title: "Prove it", body: "Compare your plan with repository evidence and fix the biggest gaps." },
 ] as const;
 
 /** Server Component - only the form below needs the client. */
@@ -17,8 +17,8 @@ export default function HomePage() {
         </h1>
         <p className="max-w-2xl text-base text-ink-muted">
           Describe your interests and skills. IdeaForge generates three scoped project
-          ideas, builds a phased roadmap for the one you choose, and gives you an AI
-          mentor that knows that exact project.
+          ideas, freezes a realistic scope, and later checks your GitHub repository to
+          show what is implemented, partial, or still missing.
         </p>
       </section>
 

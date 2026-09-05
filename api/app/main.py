@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.deps import gemini_or_none
 from app.errors import register_error_handlers
 from app.observability import RequestIdMiddleware, configure_logging
-from app.routers import ideas, mentor, projects
+from app.routers import evaluations, ideas, mentor, projects
 from app.schemas import ErrorResponse, HealthResponse
 from app.security_headers import SecurityHeadersMiddleware
 
@@ -34,9 +34,12 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="API",
-        version="0.1.0",
-        description="Hackathon starter API.",
+        title="IdeaForge API",
+        version="0.2.0",
+        description=(
+            "Generate, scope, plan, mentor, and evaluate final-year projects "
+            "against bounded evidence from public GitHub repositories."
+        ),
         docs_url="/docs",
         openapi_url="/openapi.json",
         responses={500: {"model": ErrorResponse}},
@@ -60,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(ideas.router)
     app.include_router(projects.router)
     app.include_router(mentor.router)
+    app.include_router(evaluations.router)
 
     @app.get(
         "/health",
