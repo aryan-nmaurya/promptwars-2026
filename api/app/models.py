@@ -50,6 +50,9 @@ class IdeaSet(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
+    # True when Gemini was unreachable and seeded content was served instead.
+    # Persisted so the UI can be honest about it on a later page load.
+    used_fallback: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     ideas: Mapped[list[Idea]] = relationship(
         back_populates="idea_set",
@@ -109,6 +112,7 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+    used_fallback: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     steps: Mapped[list[RoadmapStep]] = relationship(
         back_populates="project",

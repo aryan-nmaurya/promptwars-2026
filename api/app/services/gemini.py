@@ -73,17 +73,32 @@ class GeneratedRoadmap(BaseModel):
     steps: list[GeneratedStep]
 
 
-class GeminiUnavailable(RuntimeError):
-    """Every configured model failed."""
+class GeminiError(RuntimeError):
+    """Base for every failure in the Gemini layer."""
+
+
+class GeminiTimeoutError(GeminiError):
+    """A model did not answer inside GEMINI_TIMEOUT_SECONDS."""
+
+
+class GeminiParseError(GeminiError):
+    """A model answered, but not in the shape the response_schema required."""
+
+
+class GeminiUnavailable(GeminiError):
+    """Every configured model failed, after retries."""
 
 
 class GeminiService:
     """Thin async wrapper over the Gemini SDK. One instance per process."""
 
-    def __init__(self, api_key: str, models: list[str], timeout: float) -> None:
+    def __init__(
+        self, api_key: str, models: list[str], timeout: float, retries: int = 1
+    ) -> None:
         self._client = genai.Client(api_key=api_key)
         self._models = models
         self._timeout = timeout
+        self._retries = max(0, retries)
 
     async def _call(
         self,
@@ -107,17 +122,30 @@ class GeminiService:
             ),
         )
         last: Exception | None = None
+        # Each model gets one retry before we move on: transient 5xx and
+        # timeouts are the common failure here, and both usually clear.
         for model in self._models:
-            try:
-                return await asyncio.wait_for(
-                    self._client.aio.models.generate_content(
-                        model=model, contents=prompt, config=config
-                    ),
-                    timeout=self._timeout,
-                )
-            except Exception as exc:  # noqa: BLE001 - any failure means try the next model
-                last = exc
-                logger.warning("Gemini model %s failed: %s", model, type(exc).__name__)
+            for attempt in range(self._retries + 1):
+                try:
+                    return await asyncio.wait_for(
+                        self._client.aio.models.generate_content(
+                            model=model, contents=prompt, config=config
+                        ),
+                        timeout=self._timeout,
+                    )
+                except TimeoutError as exc:
+                    last = GeminiTimeoutError(f"{model} exceeded {self._timeout}s")
+                    logger.warning(
+                        "Gemini timeout model=%s attempt=%d/%d",
+                        model, attempt + 1, self._retries + 1,
+                    )
+                    del exc
+                except Exception as exc:  # noqa: BLE001 - any failure means retry, then next model
+                    last = exc
+                    logger.warning(
+                        "Gemini failure model=%s attempt=%d/%d error=%s",
+                        model, attempt + 1, self._retries + 1, type(exc).__name__,
+                    )
         raise GeminiUnavailable(str(last))
 
     async def generate_ideas(self, interests: str, skills: str) -> list[GeneratedIdea]:
@@ -136,7 +164,7 @@ class GeminiService:
         )
         parsed = response.parsed
         if not isinstance(parsed, GeneratedIdeas) or not parsed.ideas:
-            raise GeminiUnavailable("empty or unparsable idea response")
+            raise GeminiParseError("empty or unparsable idea response")
         return parsed.ideas[:IDEA_COUNT]
 
     async def generate_roadmap(
@@ -157,7 +185,7 @@ class GeminiService:
         )
         parsed = response.parsed
         if not isinstance(parsed, GeneratedRoadmap) or not parsed.steps:
-            raise GeminiUnavailable("empty or unparsable roadmap response")
+            raise GeminiParseError("empty or unparsable roadmap response")
         return parsed.steps
 
     async def answer_question(self, *, context: str, question: str) -> str:
@@ -170,8 +198,20 @@ class GeminiService:
         )
         text = (response.text or "").strip()
         if not text:
-            raise GeminiUnavailable("empty mentor response")
+            raise GeminiParseError("empty mentor response")
         return text
+
+    async def ping(self) -> bool:
+        """Cheap reachability probe for /health. Never raises."""
+        try:
+            await asyncio.wait_for(
+                self._client.aio.models.list(config={"page_size": 1}),
+                timeout=min(self._timeout, 5.0),
+            )
+            return True
+        except Exception:
+            logger.warning("Gemini reachability probe failed", exc_info=True)
+            return False
 
 
 def build_gemini(settings: Settings) -> GeminiService | None:
@@ -182,4 +222,5 @@ def build_gemini(settings: Settings) -> GeminiService | None:
         api_key=settings.GOOGLE_API_KEY,
         models=settings.gemini_models,
         timeout=settings.GEMINI_TIMEOUT_SECONDS,
+        retries=settings.GEMINI_RETRIES,
     )

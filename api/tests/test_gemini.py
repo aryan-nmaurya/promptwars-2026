@@ -8,6 +8,7 @@ from app.models import MentorMessage, Project, RoadmapStep
 from app.routers.mentor import build_context
 from app.services.fallback import fallback_answer, fallback_ideas, fallback_roadmap
 from app.services.gemini import (
+    GeminiParseError,
     GeminiService,
     GeminiUnavailable,
     GeneratedIdeas,
@@ -34,8 +35,12 @@ class _FakeModels:
         return _Response()
 
 
-def _service(failing: set[str], payload: object) -> tuple[GeminiService, _FakeModels]:
-    service = GeminiService(api_key="test", models=["model-a", "model-b"], timeout=5.0)
+def _service(
+    failing: set[str], payload: object, retries: int = 1
+) -> tuple[GeminiService, _FakeModels]:
+    service = GeminiService(
+        api_key="test", models=["model-a", "model-b"], timeout=5.0, retries=retries
+    )
     fake = _FakeModels(failing, payload)
     service._client = type("C", (), {"aio": type("A", (), {"models": fake})()})()  # noqa: SLF001
     return service, fake
@@ -50,7 +55,8 @@ async def test_falls_through_to_the_second_model(monkeypatch: pytest.MonkeyPatch
 
     ideas = await service.generate_ideas("healthcare", "python")
 
-    assert fake.attempts == ["model-a", "model-b"], "must try the next model, not give up"
+    # One retry per model: a is tried twice before b is reached.
+    assert fake.attempts == ["model-a", "model-a", "model-b"]
     assert ideas[0].title == "t"
 
 
@@ -60,13 +66,13 @@ async def test_raises_when_every_model_fails() -> None:
     with pytest.raises(GeminiUnavailable):
         await service.generate_ideas("healthcare", "python")
 
-    assert fake.attempts == ["model-a", "model-b"]
+    assert fake.attempts == ["model-a", "model-a", "model-b", "model-b"]
 
 
-async def test_unparsable_response_is_treated_as_unavailable() -> None:
+async def test_unparsable_response_raises_a_parse_error() -> None:
     service, _ = _service(set(), payload=None)
 
-    with pytest.raises(GeminiUnavailable):
+    with pytest.raises(GeminiParseError):
         await service.generate_ideas("healthcare", "python")
 
 
@@ -90,16 +96,17 @@ def test_context_grounds_the_mentor_in_one_project() -> None:
     assert "user: hello" in context
 
 
-def test_fallback_ideas_use_the_students_own_words() -> None:
-    ideas = fallback_ideas("healthcare", "python, sql")
+def test_fallback_serves_the_seeded_example_project() -> None:
+    ideas = fallback_ideas()
 
     assert len(ideas) == 3
-    assert all("healthcare" in i.title.lower() for i in ideas)
-    assert ideas[0].tech_stack == ["python", "sql"]
+    assert ideas[0].title.startswith("Voice-First Medication")
+    assert "FastAPI" in ideas[0].tech_stack
+    assert all(1 <= i.feasibility <= 10 for i in ideas)
 
 
 def test_fallback_roadmap_is_phased_and_ordered() -> None:
-    steps = fallback_roadmap("Triage Bot")
+    steps = fallback_roadmap()
 
     assert len(steps) >= 8
     assert steps[0].phase.startswith("Phase 1")

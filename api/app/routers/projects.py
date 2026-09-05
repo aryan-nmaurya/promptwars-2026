@@ -22,7 +22,7 @@ from app.schemas import (
     StepUpdate,
 )
 from app.services.fallback import fallback_roadmap
-from app.services.gemini import GeminiUnavailable
+from app.services.gemini import GeminiError
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ def _to_read(project: Project) -> ProjectRead:
         interests=project.interests,
         skills=project.skills,
         created_at=project.created_at,
+        used_fallback=project.used_fallback,
         steps=steps,
         steps_total=len(steps),
         steps_done=sum(1 for s in steps if s.is_done),
@@ -97,13 +98,16 @@ async def create_project(
         interests=parent.interests,
         skills=parent.skills,
     )
+    used_fallback = False
     try:
         steps = await gemini.generate_roadmap(
             title=idea.title, summary=idea.summary, tech_stack=idea.tech_stack, skills=parent.skills
         )
-    except GeminiUnavailable:
-        logger.exception("Gemini roadmap generation failed; using fallback")
-        steps = fallback_roadmap(idea.title)
+    except GeminiError:
+        logger.exception("Gemini roadmap generation failed; serving seeded fallback")
+        steps = fallback_roadmap()
+        used_fallback = True
+    project.used_fallback = used_fallback
 
     for position, step in enumerate(steps):
         project.steps.append(

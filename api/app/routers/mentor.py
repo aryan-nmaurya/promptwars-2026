@@ -20,7 +20,7 @@ from app.schemas import (
     PageMeta,
 )
 from app.services.fallback import fallback_answer
-from app.services.gemini import GeminiUnavailable
+from app.services.gemini import GeminiError
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ async def ask_mentor(
         answer_text = await gemini.answer_question(
             context=build_context(project), question=payload.question
         )
-    except GeminiUnavailable:
+    except GeminiError:
         logger.exception("Gemini mentor call failed; using fallback")
         answer_text = fallback_answer(payload.question)
 

@@ -75,3 +75,34 @@ async def test_rate_limit_protects_the_ai_endpoint(client: AsyncClient) -> None:
 
     assert 429 in codes, "AI endpoint must be rate limited"
     assert codes.count(201) == 12
+
+
+async def test_identical_input_reuses_the_cached_generation(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    await client.post("/ideas", json=PAYLOAD)
+    # Same words, different casing and spacing - must still hit the cache.
+    await client.post("/ideas", json={"interests": " Healthcare ", "skills": "PYTHON"})
+
+    assert gemini.calls == ["ideas"], "second identical request must not call Gemini"
+
+
+async def test_different_input_bypasses_the_cache(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    await client.post("/ideas", json=PAYLOAD)
+    await client.post("/ideas", json={"interests": "climate", "skills": "rust"})
+
+    assert gemini.calls == ["ideas", "ideas"]
+
+
+async def test_fallback_is_flagged_not_disguised(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    gemini.fail = True
+
+    body = (await client.post("/ideas", json=PAYLOAD)).json()
+
+    # The UI must be able to tell the student this is seeded content.
+    assert body["used_fallback"] is True
+    assert len(body["ideas"]) == 3

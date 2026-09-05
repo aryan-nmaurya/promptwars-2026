@@ -26,14 +26,16 @@ from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app import db  # noqa: E402
 from app.deps import get_gemini  # noqa: E402
+from app import deps  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.ratelimit import reset_rate_limit  # noqa: E402
+from app.routers.ideas import reset_ideas_cache  # noqa: E402
 from app.services.gemini import (  # noqa: E402
     GeneratedIdea,
     GeneratedStep,
     GeminiUnavailable,
-)
+)  # noqa: E402
 
 
 class StubGemini:
@@ -73,6 +75,10 @@ class StubGemini:
             GeneratedStep(phase="Phase 2: Core build", title="Build it", detail="d"),
         ]
 
+    async def ping(self) -> bool:
+        self.calls.append("ping")
+        return not self.fail
+
     async def answer_question(self, *, context: str, question: str) -> str:
         self.calls.append("mentor")
         if self.fail:
@@ -105,8 +111,10 @@ async def session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
 
 
 @pytest.fixture(autouse=True)
-def _clean_rate_limiter() -> None:
+def _clean_shared_state() -> None:
+    """Rate-limit counters and the idea cache are process-global."""
     reset_rate_limit()
+    reset_ideas_cache()
 
 
 @pytest.fixture
@@ -119,6 +127,8 @@ async def client(
     # Both the request dependency and the health probe read this factory.
     monkeypatch.setattr(db, "SessionLocal", session_factory)
     fastapi_app.dependency_overrides[get_gemini] = lambda: gemini
+    # /health calls gemini_or_none() directly, outside the dependency graph.
+    monkeypatch.setattr(deps, "_service", lambda: gemini)
 
     transport = ASGITransport(app=fastapi_app)
     try:

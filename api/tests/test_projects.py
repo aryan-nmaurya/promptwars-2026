@@ -25,6 +25,7 @@ async def test_choosing_an_idea_creates_a_project_with_a_roadmap(
     assert project["steps_total"] == 2
     assert project["steps_done"] == 0
     assert project["steps"][0]["phase"] == "Phase 1: Foundation"
+    assert project["used_fallback"] is False
     assert project["interests"] == "healthcare", "student context is carried over"
     assert gemini.calls == ["ideas", "roadmap"]
 

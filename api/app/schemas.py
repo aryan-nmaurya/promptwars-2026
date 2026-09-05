@@ -33,6 +33,7 @@ class ApiModel(BaseModel):
 class HealthResponse(ApiModel):
     status: str = Field(examples=["ok"])
     db: bool
+    gemini: bool
 
 
 class ErrorResponse(ApiModel):
@@ -79,6 +80,7 @@ class IdeaSetRead(ApiModel):
     interests: str
     skills: str
     created_at: datetime
+    used_fallback: bool = False
     ideas: list[IdeaRead]
 
 
@@ -125,6 +127,7 @@ class ProjectRead(ApiModel):
     interests: str
     skills: str
     created_at: datetime
+    used_fallback: bool = False
     steps: list[RoadmapStepRead]
     steps_total: int
     steps_done: int

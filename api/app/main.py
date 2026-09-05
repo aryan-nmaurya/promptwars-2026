@@ -5,6 +5,7 @@ Imported by `api/index.py` (Vercel) and by `uvicorn app.main:app` (local).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import FastAPI
@@ -12,15 +13,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
 from app.config import get_settings
+from app.deps import gemini_or_none
 from app.errors import register_error_handlers
+from app.observability import RequestIdMiddleware, configure_logging
 from app.routers import ideas, mentor, projects
 from app.schemas import ErrorResponse, HealthResponse
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+configure_logging(logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+async def _false() -> bool:
+    """Stand-in probe for when no Gemini key is configured."""
+    return False
 
 
 def create_app() -> FastAPI:
@@ -34,6 +39,10 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
         responses={500: {"model": ErrorResponse}},
     )
+
+    # Outermost so the id is set before anything else logs, and so the
+    # response header survives every other layer.
+    app.add_middleware(RequestIdMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
@@ -49,11 +58,25 @@ def create_app() -> FastAPI:
     app.include_router(projects.router)
     app.include_router(mentor.router)
 
-    @app.get("/health", response_model=HealthResponse, tags=["meta"], summary="Liveness + DB check")
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        tags=["meta"],
+        summary="Liveness plus dependency checks",
+    )
     async def health() -> HealthResponse:
-        # Always 200. `db` tells you whether Postgres answered; a red DB should
-        # not make the platform think the whole function is dead.
-        return HealthResponse(status="ok", db=await db.ping_db())
+        """Always 200.
+
+        `db` and `gemini` report each dependency separately; a red dependency
+        must not make the platform think the whole function is dead. The two
+        probes run concurrently so /health stays fast.
+        """
+        service = gemini_or_none()
+        db_ok, gemini_ok = await asyncio.gather(
+            db.ping_db(),
+            service.ping() if service is not None else _false(),
+        )
+        return HealthResponse(status="ok", db=db_ok, gemini=gemini_ok)
 
     logger.info("App started env=%s origins=%s", settings.ENV, settings.allowed_origins)
     return app

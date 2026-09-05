@@ -19,6 +19,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.config import get_settings  # noqa: E402
 from app.db import SessionLocal, engine  # noqa: E402
 from app.models import Base, Idea, IdeaSet, MentorMessage, Project, RoadmapStep  # noqa: E402
+from app.services.fallback import (  # noqa: E402
+    DEMO_CONVERSATION,
+    DEMO_IDEAS,
+    DEMO_STEPS,
+    DEMO_INTERESTS,
+    DEMO_SKILLS,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("seed")
@@ -27,96 +34,13 @@ logger = logging.getLogger("seed")
 DEMO_SET_ID = "demo-ideas-2026"
 DEMO_PROJECT_ID = "demo-project-2026"
 
-INTERESTS = "healthcare and accessibility for elderly patients"
-SKILLS = "python, react, postgresql"
+INTERESTS = DEMO_INTERESTS
+SKILLS = DEMO_SKILLS
 
-DEMO_IDEAS: list[dict[str, object]] = [
-    {
-        "id": "demo-idea-voice",
-        "title": "Voice-First Medication Reminder and Tracking Dashboard",
-        "summary": (
-            "A web application that lets elderly patients confirm each daily medication "
-            "using simple voice commands or large visual buttons. Carers see adherence "
-            "history remotely through a companion view."
-        ),
-        "problem_solved": (
-            "Elderly patients with low vision or dexterity issues struggle with complex "
-            "smartphone apps, which leads to missed medication doses."
-        ),
-        "feasibility": 9,
-        "tech_stack": ["Python", "FastAPI", "React", "PostgreSQL", "Web Speech API"],
-    },
-    {
-        "id": "demo-idea-therapy",
-        "title": "Accessible Post-Op Physical Therapy Companion",
-        "summary": (
-            "An interactive companion that guides patients through exercises prescribed "
-            "after surgery, using high-contrast visuals and audio instructions. Progress "
-            "is shared with the physiotherapist."
-        ),
-        "problem_solved": (
-            "Patients discharged after surgery forget or abandon their exercise plan, and "
-            "clinicians have no visibility until the next appointment."
-        ),
-        "feasibility": 8,
-        "tech_stack": ["Python", "FastAPI", "React", "PostgreSQL"],
-    },
-    {
-        "id": "demo-idea-reports",
-        "title": "Plain-Language Medical Report Explainer",
-        "summary": (
-            "A tool that turns discharge summaries and lab reports into plain language at "
-            "a chosen reading level, with the clinical terms kept alongside."
-        ),
-        "problem_solved": (
-            "Patients receive reports written for clinicians and cannot act on advice they "
-            "do not understand."
-        ),
-        "feasibility": 7,
-        "tech_stack": ["Python", "FastAPI", "React", "PostgreSQL"],
-    },
-]
 
 # (phase, title, detail, is_done) - the first three are ticked so the demo URL
 # opens with visible progress and the mentor has completed work to reason about.
-DEMO_STEPS: list[tuple[str, str, str, bool]] = [
-    ("Phase 1: Foundation", "Initialise the PostgreSQL database and define the schema",
-     "Create tables for patients, medications and adherence events.", True),
-    ("Phase 1: Foundation", "Set up the FastAPI backend server",
-     "Add a health endpoint and wire up async database sessions.", True),
-    ("Phase 1: Foundation", "Scaffold the React frontend",
-     "Create the project shell with routing and a high-contrast theme.", True),
-    ("Phase 2: Core workflow", "Build the medication CRUD endpoints",
-     "Validate every request body and paginate the list endpoint.", False),
-    ("Phase 2: Core workflow", "Build the daily medication list screen",
-     "Show today's doses with large touch targets and clear state.", False),
-    ("Phase 2: Core workflow", "Record an adherence event when a dose is confirmed",
-     "Write the event and update the screen optimistically.", False),
-    ("Phase 3: Voice and accessibility", "Add Web Speech API voice confirmation",
-     "Let the patient say 'taken' to confirm the highlighted dose.", False),
-    ("Phase 3: Voice and accessibility", "Provide a non-voice fallback path",
-     "Voice must never be the only way to complete an action.", False),
-    ("Phase 3: Voice and accessibility", "Audit contrast and keyboard navigation",
-     "Verify 4.5:1 text contrast and that every control is reachable.", False),
-    ("Phase 4: Carer view and delivery", "Build the carer adherence dashboard",
-     "Summarise the last 30 days per medication.", False),
-    ("Phase 4: Carer view and delivery", "Write tests for both paths",
-     "One success and one failure case per endpoint.", False),
-    ("Phase 4: Carer view and delivery", "Deploy and rehearse the demo",
-     "Ship it, then script the three-minute walkthrough.", False),
-]
 
-DEMO_CONVERSATION: list[tuple[str, str]] = [
-    ("user", "I just finished the database step. What exactly should I do next?"),
-    (
-        "assistant",
-        "Your next step is 'Set up the FastAPI backend server'. Concretely: create a "
-        "backend/ directory, install fastapi, uvicorn and asyncpg, then add a health "
-        "endpoint so you can prove the server and database talk to each other before "
-        "you build any real feature. Getting that thin slice working end to end is "
-        "worth more than a perfect schema.",
-    ),
-]
 
 
 async def _seed_idea_set(session) -> None:  # type: ignore[no-untyped-def]

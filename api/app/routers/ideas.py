@@ -7,12 +7,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 
+from app.cache import TTLCache, cache_key
+from app.config import get_settings
 from app.deps import GeminiDep, SessionDep
 from app.models import Idea, IdeaSet
 from app.ratelimit import RateLimiter
 from app.schemas import ErrorResponse, IdeaSetCreate, IdeaSetRead
 from app.services.fallback import fallback_ideas
-from app.services.gemini import GeminiUnavailable
+from app.services.gemini import GeneratedIdea, GeminiError
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,37 @@ router = APIRouter(
 ai_limit = Depends(RateLimiter(limit=12, window_seconds=60.0))
 IdeaSetId = Annotated[str, Path(min_length=8, max_length=32)]
 
+#: Repeated identical submissions inside the window reuse the same generation
+#: instead of paying for another Gemini call. Best effort - a miss is harmless.
+_ideas_cache: TTLCache[list[GeneratedIdea]] = TTLCache(
+    ttl_seconds=get_settings().IDEAS_CACHE_TTL_SECONDS
+)
+
+
+def reset_ideas_cache() -> None:
+    """Clear the generation cache. Used by tests."""
+    _ideas_cache.clear()
+
+
+async def _generate(
+    gemini: GeminiDep, interests: str, skills: str
+) -> tuple[list[GeneratedIdea], bool]:
+    """Return (ideas, used_fallback), preferring a cached generation."""
+    key = cache_key(interests, skills)
+    cached = _ideas_cache.get(key)
+    if cached is not None:
+        logger.info("Idea cache hit key=%s", key)
+        return cached, False
+
+    try:
+        generated = await gemini.generate_ideas(interests, skills)
+    except GeminiError:
+        logger.exception("Gemini idea generation failed; serving seeded fallback")
+        return fallback_ideas(), True
+
+    _ideas_cache.set(key, generated)
+    return generated, False
+
 
 @router.post(
     "",
@@ -42,16 +75,15 @@ async def create_idea_set(
 ) -> IdeaSetRead:
     """Ask Gemini for ideas, persist them, and return the set.
 
-    Falls back to deterministic ideas if every model is unavailable so the
-    student is never left on a dead screen.
+    Falls back to the seeded example project if every model is unavailable, so
+    the student sees a real project rather than a dead screen. The set records
+    which happened so the UI can say so.
     """
-    try:
-        generated = await gemini.generate_ideas(payload.interests, payload.skills)
-    except GeminiUnavailable:
-        logger.exception("Gemini idea generation failed; using fallback")
-        generated = fallback_ideas(payload.interests, payload.skills)
+    generated, used_fallback = await _generate(gemini, payload.interests, payload.skills)
 
-    idea_set = IdeaSet(interests=payload.interests, skills=payload.skills)
+    idea_set = IdeaSet(
+        interests=payload.interests, skills=payload.skills, used_fallback=used_fallback
+    )
     for position, item in enumerate(generated):
         idea_set.ideas.append(
             Idea(

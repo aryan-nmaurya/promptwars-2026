@@ -18,6 +18,11 @@ def _service() -> GeminiService | None:
     return build_gemini(get_settings())
 
 
+def gemini_or_none() -> GeminiService | None:
+    """The service, or None when unconfigured. For probes that must not raise."""
+    return _service()
+
+
 def get_gemini() -> GeminiService:
     """503 rather than 500 when the key is missing - a config fault, not a bug."""
     service = _service()

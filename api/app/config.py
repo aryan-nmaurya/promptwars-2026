@@ -39,9 +39,15 @@ class Settings(BaseSettings):
     # Tried in order; the first that answers wins. Measured against this key:
     # gemini-2.5-* is 404 for new keys, *-latest aliases return 503, and
     # gemini-3.5-flash intermittently 500s - so the stable model leads.
-    # Two attempts at 25s must fit inside vercel.json's maxDuration of 60s.
+    # Measured: ~5-6s from Vercel (iad1 sits next to Google), ~18s from a
+    # laptop in India. 8s is right in production; raise it in local .env or
+    # every local call will time out and fall back.
+    # Worst case 2 models x (1 + GEMINI_RETRIES) x timeout must stay under
+    # vercel.json's maxDuration of 60s.
     GEMINI_MODELS: str = "gemini-3.6-flash,gemini-3.5-flash"
-    GEMINI_TIMEOUT_SECONDS: float = 25.0
+    GEMINI_TIMEOUT_SECONDS: float = 8.0
+    GEMINI_RETRIES: int = 1
+    IDEAS_CACHE_TTL_SECONDS: float = 600.0
 
     ENV: Env = "development"
 
