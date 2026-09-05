@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { CopyLinkButton } from "@/components/CopyLinkButton";
+import { ElapsedCounter } from "@/components/ElapsedCounter";
+import { FallbackBanner } from "@/components/FallbackBanner";
 import { MentorChat } from "@/components/MentorChat";
 import { RoadmapChecklist } from "@/components/RoadmapChecklist";
 import { Card, ErrorState } from "@/components/ui";
@@ -47,27 +50,29 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-fg sm:text-3xl">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-ink sm:text-4xl">
           {project.title}
         </h1>
-        <p className="max-w-2xl text-base text-muted">{project.summary}</p>
+        <p className="max-w-2xl text-base text-ink-muted">{project.summary}</p>
 
-        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <dl className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-xs">
           <div className="flex gap-2">
-            <dt className="text-muted">Feasibility</dt>
-            <dd className="font-medium text-fg">{project.feasibility}/10</dd>
+            <dt className="text-ink-muted">Feasibility</dt>
+            <dd className="text-amber">{project.feasibility}/10</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="text-muted">Built with</dt>
-            <dd className="font-medium text-fg">
-              {project.tech_stack.join(", ") || "your choice"}
-            </dd>
+            <dt className="text-ink-muted">Built with</dt>
+            <dd className="text-ink">{project.tech_stack.join(" · ") || "your choice"}</dd>
           </div>
         </dl>
+
+        <CopyLinkButton />
       </header>
 
+      {project.used_fallback ? <FallbackBanner what="this roadmap" /> : null}
+
       <Card title="The problem it solves" as="h2">
-        <p className="text-sm text-fg">{project.problem_solved}</p>
+        <p className="text-sm text-ink">{project.problem_solved}</p>
       </Card>
 
       <Card
@@ -85,6 +90,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       >
         <MentorChat projectId={project.id} initialMessages={history.items} />
       </Card>
+
+      <ElapsedCounter since={project.created_at} />
     </div>
   );
 }

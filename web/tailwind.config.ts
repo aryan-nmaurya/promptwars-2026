@@ -1,55 +1,42 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Token-based palette. Every colour is a CSS variable defined in
- * `app/globals.css`, so light and dark are one source of truth and components
- * never hardcode a hex value.
- *
- * Contrast (verified, WCAG 2.1):
- *   - all text tokens on `bg` and `surface`: >= 4.5:1 in BOTH themes
- *   - `border-strong` (input/control boundaries) and `ring`: >= 3:1 (1.4.11)
- *   - `border` is decorative only - never rely on it to identify a control
+ * Every colour resolves to a CSS custom property defined in app/globals.css,
+ * so light and dark are one source of truth and no component hardcodes a hex.
+ * Contrast for both themes is verified there.
  */
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
-  darkMode: "media",
   theme: {
     extend: {
       colors: {
-        bg: "rgb(var(--color-bg) / <alpha-value>)",
-        surface: "rgb(var(--color-surface) / <alpha-value>)",
-        fg: "rgb(var(--color-fg) / <alpha-value>)",
-        muted: "rgb(var(--color-muted) / <alpha-value>)",
-        border: "rgb(var(--color-border) / <alpha-value>)",
-        "border-strong": "rgb(var(--color-border-strong) / <alpha-value>)",
-        primary: {
-          DEFAULT: "rgb(var(--color-primary) / <alpha-value>)",
-          fg: "rgb(var(--color-primary-fg) / <alpha-value>)",
-          hover: "rgb(var(--color-primary-hover) / <alpha-value>)",
-        },
-        danger: {
-          DEFAULT: "rgb(var(--color-danger) / <alpha-value>)",
-          fg: "rgb(var(--color-danger-fg) / <alpha-value>)",
-        },
-        success: {
-          DEFAULT: "rgb(var(--color-success) / <alpha-value>)",
-          fg: "rgb(var(--color-success-fg) / <alpha-value>)",
-        },
-        warning: {
-          DEFAULT: "rgb(var(--color-warning) / <alpha-value>)",
-          fg: "rgb(var(--color-warning-fg) / <alpha-value>)",
-        },
-        ring: "rgb(var(--color-ring) / <alpha-value>)",
+        bg: "var(--bg)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        "surface-border": "var(--surface-border)",
+        "control-border": "var(--control-border)",
+        ink: "var(--ink)",
+        "ink-muted": "var(--ink-muted)",
+        amber: "var(--amber)",
+        "amber-dim": "var(--amber-dim)",
+        "amber-ink": "var(--amber-ink)",
+        glow: "var(--glow)",
+        danger: "var(--danger)",
+        "danger-ink": "var(--danger-ink)",
       },
-      borderRadius: {
-        card: "0.75rem",
+      fontFamily: {
+        display: ["var(--font-space-grotesk)", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-plex-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
-      ringColor: {
-        DEFAULT: "rgb(var(--color-ring) / <alpha-value>)",
+      borderRadius: { card: "0.75rem" },
+      keyframes: {
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(10px)" },
+          "100%": { opacity: "1", transform: "none" },
+        },
       },
-      ringOffsetColor: {
-        DEFAULT: "rgb(var(--color-bg) / <alpha-value>)",
-      },
+      animation: { "fade-up": "fade-up 420ms ease-out both" },
     },
   },
   plugins: [],

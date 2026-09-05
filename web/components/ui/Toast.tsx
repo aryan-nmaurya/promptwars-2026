@@ -37,16 +37,16 @@ export interface ToastProps {
 }
 
 const TONES: Record<StatusTone, string> = {
-  info: "border-border-strong bg-surface text-fg",
-  success: "border-success/50 bg-success/10 text-fg",
-  warning: "border-warning/50 bg-warning/10 text-fg",
-  danger: "border-danger/50 bg-danger/10 text-fg",
+  info: "border-control-border bg-surface text-ink",
+  success: "border-amber-dim bg-amber/10 text-ink",
+  warning: "border-amber-dim bg-amber/10 text-ink",
+  danger: "border-danger bg-danger/10 text-ink",
 };
 
 const ICON_TONES: Record<StatusTone, string> = {
-  info: "text-primary",
-  success: "text-success",
-  warning: "text-warning",
+  info: "text-amber",
+  success: "text-amber",
+  warning: "text-amber",
   danger: "text-danger",
 };
 
@@ -66,13 +66,13 @@ export function Toast({ tone = "info", title, children, onDismiss }: ToastProps)
       </span>
       <div className="flex-1">
         {title ? <p className="font-semibold">{title}</p> : null}
-        <div className="text-fg">{children}</div>
+        <div className="text-ink">{children}</div>
       </div>
       {onDismiss ? (
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded px-1 text-muted hover:text-fg"
+          className="rounded px-1 text-ink-muted hover:text-ink"
         >
           <span aria-hidden="true">{"✕"}</span>
           <span className="sr-only">Dismiss{title ? `: ${title}` : ""}</span>

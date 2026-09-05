@@ -68,7 +68,7 @@ export function IdeaForm() {
 
       <StatusRegion className="min-h-[1.5rem]">
         {pending ? (
-          <span className="flex items-center gap-2 text-sm text-muted">
+          <span className="flex items-center gap-2 text-sm text-ink-muted">
             <Spinner size="sm" label="Generating ideas" />
             Asking Gemini for ideas tailored to you. This takes a few seconds.
           </span>

@@ -14,9 +14,9 @@ export function ProgressBar({ done, total, label }: ProgressBarProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm font-medium text-fg">{label}</span>
-        <span className="text-sm tabular-nums text-muted">
-          {done} of {total} done ({percent}%)
+        <span className="font-mono text-xs uppercase tracking-widest text-ink-muted">{label}</span>
+        <span className="font-mono text-xs tabular-nums text-ink">
+          {done} of {total} complete ({percent}%)
         </span>
       </div>
       <div
@@ -25,10 +25,10 @@ export function ProgressBar({ done, total, label }: ProgressBarProps) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label}
-        className="h-2 w-full overflow-hidden rounded-full bg-border"
+        className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2 ring-1 ring-inset ring-surface-border"
       >
         <div
-          className="h-full rounded-full bg-primary transition-[width]"
+          className="h-full rounded-full bg-amber transition-[width] duration-500"
           style={{ width: `${percent}%` }}
         />
       </div>

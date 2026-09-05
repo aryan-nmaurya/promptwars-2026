@@ -8,10 +8,12 @@ import {
   EmptyState,
   GeminiBadge,
   Input,
+  Markdown,
   Spinner,
   StatusRegion,
 } from "@/components/ui";
-import { api, toErrorMessage, type MentorMessage, type MentorReply } from "@/lib/api";
+import { toErrorMessage, type MentorMessage } from "@/lib/api";
+import { streamMentorAnswer } from "@/lib/stream";
 
 export function MentorChat({
   projectId,
@@ -22,6 +24,7 @@ export function MentorChat({
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [question, setQuestion] = useState("");
+  const [streaming, setStreaming] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,23 +36,27 @@ export function MentorChat({
 
     setPending(true);
     setError(null);
+    setStreaming("");
+    setQuestion("");
     try {
-      const reply = await api.post<MentorReply>(`/projects/${projectId}/mentor`, {
-        question: asked,
-      });
-      setMessages((current) => [...current, reply.question, reply.answer]);
-      setQuestion("");
+      const done = await streamMentorAnswer(projectId, asked, (piece) =>
+        setStreaming((current) => (current ?? "") + piece),
+      );
+      setMessages((current) => [...current, done.question, done.answer]);
     } catch (cause: unknown) {
       setError(toErrorMessage(cause));
     } finally {
+      setStreaming(null);
       setPending(false);
       inputRef.current?.focus(); // keyboard users stay in the conversation
     }
   }
 
+  const hasHistory = messages.length > 0 || streaming !== null;
+
   return (
     <div className="flex flex-col gap-4">
-      {messages.length === 0 && !pending ? (
+      {!hasHistory ? (
         <EmptyState
           title="No questions yet"
           description="Ask anything about this project — the mentor knows its stack, roadmap and what you have already finished."
@@ -62,28 +69,52 @@ export function MentorChat({
               key={message.id}
               className={
                 message.role === "user"
-                  ? "rounded-card border border-border-strong bg-bg p-3"
-                  : "rounded-card border border-primary/40 bg-primary/5 p-3"
+                  ? "rounded-card border border-control-border bg-surface-2 p-3"
+                  : "rounded-card border border-amber-dim bg-amber/10 p-3"
               }
             >
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
                 {message.role === "user" ? "You asked" : "Mentor"}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-fg">{message.content}</p>
+              <div className="mt-1.5">
+                {message.role === "user" ? (
+                  <p className="whitespace-pre-wrap text-sm text-ink">{message.content}</p>
+                ) : (
+                  <Markdown>{message.content}</Markdown>
+                )}
+              </div>
             </li>
           ))}
+
+          {streaming !== null ? (
+            <li className="rounded-card border border-amber-dim bg-amber/10 p-3">
+              <p className="font-mono text-[11px] uppercase tracking-widest text-ink-muted">
+                Mentor
+              </p>
+              <div className="mt-1.5">
+                {streaming === "" ? (
+                  <span className="flex items-center gap-2 text-sm text-ink-muted">
+                    <Spinner size="sm" label="Mentor is thinking" />
+                    Thinking about your project…
+                  </span>
+                ) : (
+                  <>
+                    <Markdown>{streaming}</Markdown>
+                    <span aria-hidden="true" className="ml-0.5 inline-block animate-pulse text-amber">
+                      ▍
+                    </span>
+                  </>
+                )}
+              </div>
+            </li>
+          ) : null}
         </ul>
       )}
 
-      <StatusRegion className="min-h-[1.5rem]">
-        {pending ? (
-          <span className="flex items-center gap-2 text-sm text-muted">
-            <Spinner size="sm" label="Mentor is thinking" />
-            Thinking about your project…
-          </span>
-        ) : null}
+      <StatusRegion className="min-h-[1.25rem]">
+        {pending ? <span className="sr-only">Mentor is answering.</span> : null}
         {error ? (
-          <span className="text-sm font-medium text-danger">
+          <span className="font-mono text-xs font-medium text-danger">
             <span aria-hidden="true">✕ </span>
             {error}
           </span>

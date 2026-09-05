@@ -17,10 +17,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-fg hover:bg-primary-hover",
-  secondary: "bg-surface text-fg border border-border-strong hover:bg-border/40",
-  ghost: "bg-transparent text-primary hover:bg-primary/10",
-  danger: "bg-danger text-danger-fg hover:opacity-90",
+  primary: "bg-amber text-amber-ink hover:bg-amber",
+  secondary: "bg-surface text-ink border border-control-border hover:bg-surface-2",
+  ghost: "bg-transparent text-amber hover:bg-amber/10",
+  danger: "bg-danger text-danger-ink hover:opacity-90",
 };
 
 const SIZES: Record<ButtonSize, string> = {

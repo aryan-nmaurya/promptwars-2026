@@ -33,7 +33,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <div className="flex flex-col gap-1.5">
       <label
         htmlFor={id}
-        className={labelHidden ? "sr-only" : "text-sm font-medium text-fg"}
+        className={labelHidden ? "sr-only" : "text-sm font-medium text-ink"}
       >
         {label}
         {required ? (
@@ -51,9 +51,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
         className={[
-          "h-10 rounded-md bg-bg px-3 text-sm text-fg",
-          "border placeholder:text-muted",
-          error ? "border-danger" : "border-border-strong",
+          "h-10 rounded-md bg-bg px-3 text-sm text-ink",
+          "border placeholder:text-ink-muted",
+          error ? "border-danger" : "border-control-border",
           "disabled:cursor-not-allowed disabled:opacity-60",
           className,
         ].join(" ")}
@@ -61,7 +61,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       />
 
       {hint && !error ? (
-        <p id={hintId} className="text-xs text-muted">
+        <p id={hintId} className="text-xs text-ink-muted">
           {hint}
         </p>
       ) : null}

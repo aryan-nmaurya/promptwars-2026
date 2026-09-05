@@ -25,11 +25,11 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="flex flex-col items-start gap-3 rounded-card border border-danger/50 bg-danger/10 p-5"
+      className="flex flex-col items-start gap-3 rounded-card border border-danger bg-danger/10 p-5"
     >
       <div>
         <p className="font-semibold text-danger">{title}</p>
-        <p className="mt-1 text-sm text-fg">{message}</p>
+        <p className="mt-1 text-sm text-ink">{message}</p>
       </div>
       {onRetry ? (
         <Button variant="secondary" size="sm" onClick={onRetry}>

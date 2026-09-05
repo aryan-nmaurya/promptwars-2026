@@ -29,17 +29,17 @@ export function Card({
   footer,
 }: CardProps) {
   return (
-    <section className={["rounded-card border border-border bg-surface p-5 sm:p-6", className].join(" ")}>
+    <section className={["rounded-card border border-surface-border bg-surface p-5 sm:p-6", className].join(" ")}>
       {title ? (
         <header className="mb-4">
-          <Heading className="text-lg font-semibold text-fg">{title}</Heading>
-          {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
+          <Heading className="text-lg font-semibold text-ink">{title}</Heading>
+          {description ? <p className="mt-1 text-sm text-ink-muted">{description}</p> : null}
         </header>
       ) : null}
 
       {children}
 
-      {footer ? <footer className="mt-5 border-t border-border pt-4">{footer}</footer> : null}
+      {footer ? <footer className="mt-5 border-t border-surface-border pt-4">{footer}</footer> : null}
     </section>
   );
 }

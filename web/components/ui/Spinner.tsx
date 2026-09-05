@@ -23,7 +23,7 @@ export function Spinner({ size = "md", label = "Loading", className = "" }: Spin
     <span role="status" className={`inline-flex items-center ${className}`}>
       <span
         aria-hidden="true"
-        className={`animate-spin rounded-full border-border-strong border-t-primary ${SIZES[size]}`}
+        className={`animate-spin rounded-full border-surface-border border-t-amber ${SIZES[size]}`}
       />
       <span className="sr-only">{label}</span>
     </span>

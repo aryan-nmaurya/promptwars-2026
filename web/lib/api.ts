@@ -243,6 +243,8 @@ export interface IdeaSet {
   interests: string;
   skills: string;
   created_at: string;
+  /** True when Gemini was unreachable and seeded content was served. */
+  used_fallback: boolean;
   ideas: Idea[];
 }
 
@@ -265,6 +267,8 @@ export interface Project {
   interests: string;
   skills: string;
   created_at: string;
+  /** True when Gemini was unreachable and the seeded roadmap was served. */
+  used_fallback: boolean;
   steps: RoadmapStep[];
   steps_total: number;
   steps_done: number;

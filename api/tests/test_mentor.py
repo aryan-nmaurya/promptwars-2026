@@ -115,3 +115,59 @@ async def test_overlong_question_is_rejected(client: AsyncClient) -> None:
     )
 
     assert response.status_code == 422
+
+
+async def _sse_events(client: AsyncClient, project_id: str, question: str) -> list[str]:
+    """Collect raw SSE frames from the streaming endpoint."""
+    frames: list[str] = []
+    async with client.stream(
+        "POST", f"/projects/{project_id}/mentor/stream", json={"question": question}
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        async for line in response.aiter_lines():
+            frames.append(line)
+    return frames
+
+
+async def test_streaming_sends_chunks_then_a_done_frame(client: AsyncClient) -> None:
+    project = await _make_project(client)
+
+    frames = await _sse_events(client, project["id"], "What should I build first?")
+
+    body = "\n".join(frames)
+    assert body.count("event: chunk") >= 2, "answer must arrive in pieces"
+    assert body.count("event: done") == 1, "exactly one terminal frame"
+    assert project["title"] in body, "streamed answer must be grounded in this project"
+
+
+async def test_streaming_persists_the_exchange_once(client: AsyncClient) -> None:
+    project = await _make_project(client)
+
+    await _sse_events(client, project["id"], "Where do I start?")
+    history = (await client.get(f"/projects/{project['id']}/mentor")).json()
+
+    assert history["meta"]["total"] == 2, "one question and one answer, not a partial write"
+    assert [m["role"] for m in history["items"]] == ["user", "assistant"]
+    assert "Grounded" in history["items"][1]["content"]
+
+
+async def test_streaming_falls_back_when_gemini_dies(
+    client: AsyncClient, gemini: StubGemini
+) -> None:
+    project = await _make_project(client)
+    gemini.fail = True
+
+    frames = await _sse_events(client, project["id"], "Help me please")
+
+    body = "\n".join(frames)
+    assert "temporarily unreachable" in body
+    assert '"used_fallback": true' in body.replace(", ", ", ")
+
+
+async def test_streaming_unknown_project_is_404(client: AsyncClient) -> None:
+    response = await client.post(
+        "/projects/doesnotexist12345/mentor/stream", json={"question": "Anything?"}
+    )
+
+    assert response.status_code == 404

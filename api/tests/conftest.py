@@ -75,6 +75,13 @@ class StubGemini:
             GeneratedStep(phase="Phase 2: Core build", title="Build it", detail="d"),
         ]
 
+    async def stream_answer(self, *, context: str, question: str):  # type: ignore[no-untyped-def]
+        self.calls.append("stream")
+        if self.fail:
+            raise GeminiUnavailable("stubbed failure")
+        for piece in ("Grounded ", "streamed ", f"answer. Context saw: {context[:120]}"):
+            yield piece
+
     async def ping(self) -> bool:
         self.calls.append("ping")
         return not self.fail

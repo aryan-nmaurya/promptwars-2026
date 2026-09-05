@@ -41,8 +41,8 @@ export default async function ProjectsPage({
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-fg sm:text-3xl">All projects</h1>
-        <p className="text-sm text-muted">
+        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">All projects</h1>
+        <p className="text-sm text-ink-muted">
           {meta.total === 0
             ? "No projects yet."
             : `${meta.total} project${meta.total === 1 ? "" : "s"} generated so far.`}
@@ -66,17 +66,17 @@ export default async function ProjectsPage({
             <li key={project.id}>
               <Link
                 href={`/projects/${project.id}`}
-                className="block rounded-card border border-border bg-surface p-4 hover:border-border-strong"
+                className="block rounded-card border border-surface-border bg-surface p-4 hover:border-control-border"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 className="font-semibold text-fg">{project.title}</h2>
-                  <span className="text-xs text-muted">
+                  <h2 className="font-semibold text-ink">{project.title}</h2>
+                  <span className="text-xs text-ink-muted">
                     Feasibility {project.feasibility}/10
                   </span>
                 </div>
-                <p className="mt-1 line-clamp-2 text-sm text-muted">{project.summary}</p>
+                <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{project.summary}</p>
                 {project.tech_stack.length > 0 ? (
-                  <p className="mt-2 text-xs text-muted">{project.tech_stack.join(" · ")}</p>
+                  <p className="mt-2 text-xs text-ink-muted">{project.tech_stack.join(" · ")}</p>
                 ) : null}
               </Link>
             </li>
@@ -95,7 +95,7 @@ export default async function ProjectsPage({
           ) : (
             <span />
           )}
-          <p className="text-xs text-muted">
+          <p className="text-xs text-ink-muted">
             Showing {meta.offset + 1}–{meta.offset + items.length} of {meta.total}
           </p>
           {hasNext ? (

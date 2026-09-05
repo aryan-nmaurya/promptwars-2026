@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Annotated
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 
 from app.deps import GeminiDep, SessionDep
@@ -101,6 +105,61 @@ async def ask_mentor(
     return MentorReply(
         question=MentorMessageRead.model_validate(question),
         answer=MentorMessageRead.model_validate(answer),
+    )
+
+
+async def _stream_events(
+    session: SessionDep, gemini: GeminiDep, project: Project, question: str
+) -> AsyncIterator[str]:
+    """Server-sent events: many `chunk` frames, then one terminal `done` frame.
+
+    The answer is accumulated as it streams and persisted once at the end, so a
+    dropped connection cannot leave a half-written message in the history.
+    """
+    pieces: list[str] = []
+    used_fallback = False
+    try:
+        async for piece in gemini.stream_answer(
+            context=build_context(project), question=question
+        ):
+            pieces.append(piece)
+            yield f"event: chunk\ndata: {json.dumps({'text': piece})}\n\n"
+    except Exception:
+        logger.exception("Mentor stream failed; serving fallback answer")
+        if not pieces:
+            used_fallback = True
+            pieces = [fallback_answer(question)]
+            yield f"event: chunk\ndata: {json.dumps({'text': pieces[0]})}\n\n"
+
+    answer_text = "".join(pieces).strip() or fallback_answer(question)
+    question_row = MentorMessage(project_id=project.id, role="user", content=question)
+    answer_row = MentorMessage(project_id=project.id, role="assistant", content=answer_text)
+    session.add_all([question_row, answer_row])
+    await session.commit()
+
+    payload = {
+        "question": MentorMessageRead.model_validate(question_row).model_dump(mode="json"),
+        "answer": MentorMessageRead.model_validate(answer_row).model_dump(mode="json"),
+        "used_fallback": used_fallback,
+    }
+    yield f"event: done\ndata: {json.dumps(payload)}\n\n"
+
+
+@router.post(
+    "/stream",
+    dependencies=[ai_limit],
+    summary="Ask the mentor, streamed token by token",
+    response_class=StreamingResponse,
+)
+async def ask_mentor_streaming(
+    payload: MentorAsk, session: SessionDep, gemini: GeminiDep, project_id: ProjectId
+) -> StreamingResponse:
+    """Same contract as POST, delivered as server-sent events."""
+    project = await _load_project(session, project_id)
+    return StreamingResponse(
+        _stream_events(session, gemini, project, payload.question),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
 
 

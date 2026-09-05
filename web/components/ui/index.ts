@@ -27,3 +27,5 @@ export type { ProgressBarProps } from "./ProgressBar";
 
 export { Textarea } from "./Textarea";
 export type { TextareaProps } from "./Textarea";
+
+export { Markdown } from "./Markdown";

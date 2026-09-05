@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 
 from google import genai
 from google.genai import types
@@ -213,6 +214,34 @@ class GeminiService:
         if not text:
             raise GeminiParseError("empty mentor response")
         return text
+
+    async def stream_answer(self, *, context: str, question: str) -> AsyncIterator[str]:
+        """Yield the mentor's answer in chunks as the model produces it.
+
+        Only the first configured model is tried: once bytes are on the wire we
+        cannot restart cleanly, so the caller falls back to the non-streaming
+        path if this raises before the first chunk.
+        """
+        config = types.GenerateContentConfig(
+            system_instruction=MENTOR_SYSTEM,
+            temperature=0.6,
+            thinking_config=types.ThinkingConfig(thinking_level="low"),
+        )
+        prompt = (
+            f"{context}\n\n"
+            f"{wrap_untrusted('Student question:', sanitize_text(question, max_length=1000))}"
+        )
+        stream = await self._client.aio.models.generate_content_stream(
+            model=self._models[0], contents=prompt, config=config
+        )
+        produced = False
+        async for chunk in stream:
+            text = chunk.text
+            if text:
+                produced = True
+                yield text
+        if not produced:
+            raise GeminiParseError("stream produced no text")
 
     async def ping(self) -> bool:
         """Cheap reachability probe for /health. Never raises."""

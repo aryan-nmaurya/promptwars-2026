@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="IdeaForge">
+  <rect width="64" height="64" rx="14" fill="#0B0D12"/>
+  <path d="M32 10 L38.5 26.5 L55 33 L38.5 39.5 L32 56 L25.5 39.5 L9 33 L25.5 26.5 Z" fill="#E2A33D"/>
+  <circle cx="32" cy="33" r="5" fill="#0B0D12"/>
+</svg>

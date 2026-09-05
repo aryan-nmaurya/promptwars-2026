@@ -7,8 +7,8 @@ export const metadata = { title: "Not found" };
 export default function NotFound() {
   return (
     <div className="flex flex-col items-start gap-4">
-      <h1 className="text-2xl font-bold tracking-tight text-fg">This page does not exist</h1>
-      <p className="max-w-prose text-sm text-muted">
+      <h1 className="text-2xl font-bold tracking-tight text-ink">This page does not exist</h1>
+      <p className="max-w-prose text-sm text-ink-muted">
         The link may be mistyped, or the project it pointed to was never created.
       </p>
       <Link href="/" className="rounded">

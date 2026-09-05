@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { PhaseReveal } from "@/components/PhaseReveal";
 import { ProgressBar, StatusRegion } from "@/components/ui";
 import { api, groupByPhase, toErrorMessage, type RoadmapStep } from "@/lib/api";
 
@@ -45,38 +46,50 @@ export function RoadmapChecklist({
     <div className="flex flex-col gap-5">
       <ProgressBar done={done} total={steps.length} label="Roadmap progress" />
 
-      {groupByPhase(steps).map((group) => (
-        <section key={group.phase} aria-label={group.phase} className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">
-            {group.phase}
-          </h3>
-          <ul className="flex flex-col gap-1">
-            {group.steps.map((step) => (
-              <li key={step.id}>
-                <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-bg p-3 hover:border-border-strong">
-                  <input
-                    type="checkbox"
-                    checked={step.is_done}
-                    onChange={(e) => void toggle(step, e.target.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-                  />
-                  <span className="flex flex-col gap-0.5">
-                    <span
-                      className={
-                        step.is_done ? "text-sm font-medium text-muted line-through" : "text-sm font-medium text-fg"
-                      }
-                    >
-                      {step.title}
+      {groupByPhase(steps).map((group, index) => (
+        <PhaseReveal key={group.phase} index={index}>
+          <section aria-label={group.phase} className="flex flex-col gap-2">
+            <h3 className="flex items-baseline gap-2.5">
+              <span
+                aria-hidden="true"
+                className="font-mono text-lg font-semibold leading-none text-amber"
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="font-display text-sm font-bold uppercase tracking-wider text-ink">
+                {group.phase}
+              </span>
+            </h3>
+            <ul className="flex flex-col gap-1">
+              {group.steps.map((step) => (
+                <li key={step.id}>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-md border border-surface-border bg-surface p-3 transition-colors hover:border-control-border">
+                    <input
+                      type="checkbox"
+                      checked={step.is_done}
+                      onChange={(e) => void toggle(step, e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-amber"
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span
+                        className={
+                          step.is_done
+                            ? "text-sm font-medium text-ink-muted line-through"
+                            : "text-sm font-medium text-ink"
+                        }
+                      >
+                        {step.title}
+                      </span>
+                      {step.detail ? (
+                        <span className="text-xs text-ink-muted">{step.detail}</span>
+                      ) : null}
                     </span>
-                    {step.detail ? (
-                      <span className="text-xs text-muted">{step.detail}</span>
-                    ) : null}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </section>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </PhaseReveal>
       ))}
 
       <StatusRegion className="min-h-[1.25rem]">
