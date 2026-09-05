@@ -78,6 +78,16 @@ export async function streamMentorAnswer(
         onChunk((JSON.parse(data) as { text: string }).text);
       } else if (event === "done") {
         done = JSON.parse(data) as StreamDone;
+      } else if (event === "error") {
+        // The server emits this when a stream dies mid-answer: the partial
+        // text is deliberately not persisted, so the client must surface the
+        // real reason rather than the generic "ended unexpectedly" below.
+        const payload = JSON.parse(data) as { error?: string };
+        throw new ApiError(
+          payload.error ?? "The mentor response was interrupted. Please retry.",
+          503,
+          url,
+        );
       }
     }
   }

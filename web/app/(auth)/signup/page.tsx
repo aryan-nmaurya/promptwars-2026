@@ -5,9 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FormEvent } from "react";
 
-import { Button, Input, StatusRegion } from "@/components/ui";
-import { signUp, useAdoptableProjects } from "@/lib/auth";
+import {
+  CredentialFields,
+  validateCredentials,
+  type CredentialErrors,
+} from "@/components/auth/CredentialFields";
+import { Button, StatusRegion } from "@/components/ui";
 import { toErrorMessage } from "@/lib/api";
+import { signUp, useAdoptableProjects } from "@/lib/auth";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -15,54 +20,27 @@ export default function SignupPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-
-  const [emailError, setEmailError] = useState<string | undefined>(undefined);
-  const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
+  const [errors, setErrors] = useState<CredentialErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  function validateEmail(value: string): boolean {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setEmailError("Email is required");
-      return false;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setEmailError("Please enter a valid email address");
-      return false;
-    }
-    setEmailError(undefined);
-    return true;
+  function validate(): boolean {
+    const found = validateCredentials(email, password, { requireStrongPassword: true });
+    setErrors(found);
+    return Object.keys(found).length === 0;
   }
 
-  function validatePassword(value: string): boolean {
-    if (!value) {
-      setPasswordError("Password is required");
-      return false;
-    }
-    if (value.length < 10) {
-      setPasswordError("Password must be at least 10 characters");
-      return false;
-    }
-    setPasswordError(undefined);
-    return true;
-  }
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
-    const isEmailValid = validateEmail(email);
-    const isPasswordValid = validatePassword(password);
-    if (!isEmailValid || !isPasswordValid) return;
+  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!validate()) return;
 
     setPending(true);
     setServerError(null);
-
     try {
       await signUp(email, password, adoptableProjects);
       router.push("/onboarding");
-    } catch (err) {
-      setServerError(toErrorMessage(err));
+    } catch (cause: unknown) {
+      setServerError(toErrorMessage(cause));
       setPending(false);
     }
   }
@@ -79,54 +57,23 @@ export default function SignupPage() {
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-        <Input
-          label="University email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          onBlur={(e) => validateEmail(e.target.value)}
-          error={emailError}
+        <CredentialFields
+          mode="sign-up"
+          email={email}
+          password={password}
+          errors={errors}
           disabled={pending}
-          placeholder="student@university.edu"
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onBlurValidate={validate}
         />
 
-        <div className="flex flex-col gap-1.5">
-          <div className="relative">
-            <Input
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="new-password"
-              required
-              minLength={10}
-              hint="Must be at least 10 characters long."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onBlur={(e) => validatePassword(e.target.value)}
-              error={passwordError}
-              disabled={pending}
-              placeholder="••••••••••••"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              aria-pressed={showPassword}
-              disabled={pending}
-              className="absolute right-3 top-[34px] rounded px-1.5 py-0.5 font-mono text-xs text-ink-muted hover:text-ink focus-visible:outline"
-            >
-              {showPassword ? "Hide" : "Show"}
-            </button>
-          </div>
-        </div>
-
-        {adoptableProjects.length > 0 && (
+        {adoptableProjects.length > 0 ? (
           <div className="rounded-md border border-amber/30 bg-amber/10 p-3 text-xs text-ink">
             <span className="font-semibold text-amber">◆ Linking existing project:</span> Your
             local project on this device will automatically be connected to your new account.
           </div>
-        )}
+        ) : null}
 
         <Button
           type="submit"

@@ -12,10 +12,17 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
  * keeping public marketing and project pages fully static and fast. Every other
  * directive is locked down, and Gemini output is rendered as escaped markdown,
  * never as HTML.
+ *
+ * 'unsafe-eval' is deliberately NOT allowed. Next's dev server needs it for
+ * hot reload, so it is added back in development only; a production bundle
+ * never evaluates a string as code, and allowing it there would have widened
+ * the blast radius of an injection for no benefit.
  */
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data:",

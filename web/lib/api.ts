@@ -230,10 +230,11 @@ export function toErrorMessage(error: unknown): string {
 
 // --- Shared response types ---------------------------------------------------
 
-/** Mirrors `HealthResponse` in `app/schemas.py`. */
+/** Mirrors `HealthResponse` in `app/schemas.py`. Each dependency reports separately. */
 export interface HealthResponse {
   status: string;
   db: boolean;
+  gemini: boolean;
 }
 
 /** Mirrors `Page[T]` in `app/schemas.py`. */

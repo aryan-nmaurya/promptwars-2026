@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { ClaimEditToken } from "@/components/ClaimEditToken";
 import { CopyLinkButton } from "@/components/CopyLinkButton";
@@ -10,10 +11,19 @@ import { RoadmapChecklist } from "@/components/RoadmapChecklist";
 import { Card, ErrorState } from "@/components/ui";
 import { ApiError, api, type Project } from "@/lib/api";
 
+/**
+ * One fetch per render, shared by `generateMetadata` and the page body.
+ *
+ * Next's own request memoization does not cover this: `lib/api` attaches a
+ * fresh `AbortSignal` to every call, so the two reads looked like different
+ * requests and the API served the same project twice for one page view.
+ */
+const getProject = cache((id: string) => api.get<Project>(`/projects/${id}`));
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    const project = await api.get<Project>(`/projects/${id}`);
+    const project = await getProject(id);
     return { title: project.title };
   } catch (cause: unknown) {
     // generateMetadata runs before the page body, so without this a missing
@@ -33,7 +43,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
 
   let project: Project;
   try {
-    project = await api.get<Project>(`/projects/${id}`);
+    project = await getProject(id);
   } catch (cause: unknown) {
     if (cause instanceof ApiError && cause.status === 404) notFound();
     return (

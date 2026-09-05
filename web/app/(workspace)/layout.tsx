@@ -2,30 +2,70 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { GeminiStatusCard } from "@/components/GeminiStatusCard";
 import { signOut, useSession } from "@/lib/auth";
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export default function WorkspaceLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, status } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const drawerTitleId = useId();
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   // Close drawer on route change
   useEffect(() => {
     setDrawerOpen(false);
   }, [pathname]);
 
-  // Close drawer on Escape key
+  /**
+   * Modal behaviour, done by hand because this is a plain element rather than
+   * a <dialog>: focus moves in on open, Tab is trapped inside while it is
+   * open, Escape closes it, and focus returns to the button that opened it.
+   * Without the last part a keyboard user is dropped at the top of the
+   * document every time they dismiss the menu.
+   */
   useEffect(() => {
-    function onKeyDown(e: globalThis.KeyboardEvent) {
-      if (e.key === "Escape") setDrawerOpen(false);
+    if (!drawerOpen) return;
+    const opener = toggleRef.current;
+    const panel = drawerRef.current;
+    panel?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        setDrawerOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || panel === null) return;
+      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      opener?.focus();
+    };
+  }, [drawerOpen]);
 
   const isProjectPage = pathname.startsWith("/projects/") && pathname !== "/projects";
 
@@ -164,18 +204,7 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
 
-        {/* Gemini Status Card */}
-        <div className="rounded-card border border-surface-border bg-surface p-3">
-          <div className="flex items-center justify-between">
-            <span className="font-mono text-xs font-semibold text-ink">Gemini</span>
-            <span className="rounded-full border border-amber/30 bg-amber/10 px-2 py-0.5 font-mono text-[9px] font-bold text-amber">
-              LIVE
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] leading-tight text-ink-muted">
-            Model-backed scoping, roadmaps & repository evaluation
-          </p>
-        </div>
+        <GeminiStatusCard />
 
         {/* User / Auth status */}
         <div className="flex items-center justify-between px-1 pt-1 text-xs">
@@ -221,10 +250,12 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
           </span>
         </Link>
         <button
+          ref={toggleRef}
           type="button"
           onClick={() => setDrawerOpen((prev) => !prev)}
           aria-label={drawerOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-expanded={drawerOpen}
+          aria-haspopup="dialog"
           className="rounded-md border border-control-border bg-surface p-2 text-ink focus-visible:outline"
         >
           <svg aria-hidden="true" className="h-5 w-5 stroke-current" fill="none" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -239,14 +270,39 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
       {/* Mobile Drawer Backdrop & Slide-over */}
       {drawerOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
-          onClick={() => setDrawerOpen(false)}
-        >
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Pointer-only dismissal. It is deliberately out of the
+              accessibility tree: keyboard users get Escape and the explicit
+              close button below, and a second control sharing the same name
+              would just be a decoy in the tab order. */}
           <div
-            className="h-full w-[280px] border-r border-surface-border bg-bg"
-            onClick={(e) => e.stopPropagation()}
+            aria-hidden="true"
+            onClick={closeDrawer}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={drawerTitleId}
+            className="absolute inset-y-0 left-0 flex h-full w-[280px] flex-col overflow-y-auto border-r border-surface-border bg-bg"
           >
+            <h2 id={drawerTitleId} className="sr-only">
+              Workspace navigation
+            </h2>
+            {/* Inside the trap, so the dismiss control is always reachable:
+                the header toggle sits outside the dialog and cannot be
+                tabbed to while it is open. */}
+            <div className="flex justify-end px-4 pt-4">
+              <button
+                type="button"
+                onClick={closeDrawer}
+                className="rounded-md border border-control-border bg-surface px-2.5 py-1.5 text-xs text-ink focus-visible:outline"
+              >
+                <span aria-hidden="true">✕ </span>
+                Close menu
+              </button>
+            </div>
             {sidebarContent}
           </div>
         </div>

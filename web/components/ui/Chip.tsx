@@ -18,8 +18,13 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
  * - Min hit target 40px tall to satisfy mobile touch target guidance.
  * - Transitions restricted to `background-color`, `border-color`, `transform` (140ms) — never `all`.
  * - Contrast-verified tokens: selected is `bg-amber text-amber-ink` (8.83:1 dark, 5.52:1 light).
- *   Unselected text is `--ink` (16:1), border is `--control-border` (3.9:1).
- *   `--amber-dim` is used solely for border hover states, never text.
+ *   Unselected text is `--ink` (16:1), and the border is `--control-border`
+ *   (4.42:1 dark, 3.27:1 light) in every state, hover included: `--amber-dim`
+ *   measures 2.73:1 and would drop a control boundary below WCAG 1.4.11's 3:1.
+ * - When `onRemove` is given, the remove control is a SIBLING button, never a
+ *   descendant of the toggle. Nesting one interactive element inside another
+ *   is invalid HTML and leaves the inner control unreachable in some screen
+ *   readers, which is exactly where a "remove this tag" control must work.
  */
 export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   {
@@ -34,6 +39,10 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
   },
   ref,
 ) {
+  const surface = selected
+    ? "border-amber bg-amber text-amber-ink shadow-sm"
+    : "border-control-border bg-surface text-ink hover:bg-surface-2";
+
   return (
     <span className="inline-flex items-center">
       <button
@@ -43,39 +52,33 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
         disabled={disabled}
         onClick={onClick}
         className={[
-          "group inline-flex min-h-[40px] select-none items-center justify-center gap-1.5 rounded-md px-3.5 py-2 text-sm font-medium",
+          "group inline-flex min-h-[40px] select-none items-center justify-center gap-1.5 border px-3.5 py-2 text-sm font-medium",
           "transition-[background-color,border-color,transform] duration-140 active:scale-[0.98]",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          selected
-            ? "border border-amber bg-amber text-amber-ink shadow-sm"
-            : "border border-control-border bg-surface text-ink hover:border-amber-dim hover:bg-surface-2",
+          onRemove ? "rounded-l-md border-r-0" : "rounded-md",
+          surface,
           className,
         ].join(" ")}
         {...rest}
       >
         <span>{children}</span>
-        {onRemove ? (
-          <span
-            role="button"
-            tabIndex={0}
-            aria-label={removeLabel}
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                onRemove();
-              }
-            }}
-            className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded text-xs opacity-70 hover:opacity-100"
-          >
-            ×
-          </span>
-        ) : null}
       </button>
+      {onRemove ? (
+        <button
+          type="button"
+          aria-label={removeLabel}
+          disabled={disabled}
+          onClick={onRemove}
+          className={[
+            "inline-flex min-h-[40px] select-none items-center justify-center rounded-r-md border px-2.5 text-sm",
+            "transition-[background-color,border-color,transform] duration-140 active:scale-[0.98]",
+            "disabled:cursor-not-allowed disabled:opacity-50",
+            surface,
+          ].join(" ")}
+        >
+          <span aria-hidden="true">×</span>
+        </button>
+      ) : null}
     </span>
   );
 });

@@ -59,9 +59,12 @@ export default function LandingPage() {
           partial, and what&apos;s still missing.
         </p>
 
+        {/* The primary CTA goes straight to the generator. Pointing it at
+            /signup put an account between a visitor and the thing the product
+            does, even though no flow requires one. */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <Link
-            href="/signup"
+            href="/onboarding"
             className="inline-flex h-12 items-center justify-center rounded-md bg-amber px-6 text-base font-semibold text-amber-ink transition-transform duration-140 hover:opacity-95 active:scale-[0.98] focus-visible:outline"
           >
             Start with what you know →
@@ -73,6 +76,14 @@ export default function LandingPage() {
             See how it works
           </a>
         </div>
+
+        <p className="mt-4 text-xs text-ink-muted">
+          No account needed.{" "}
+          <Link href="/signup" className="text-amber underline-offset-4 hover:underline">
+            Create one
+          </Link>{" "}
+          only if you want your projects to follow you to another device.
+        </p>
 
         {/* Visual Centrepiece: Static Planned-vs-Built Mock */}
         <div className="mt-14 w-full max-w-3xl text-left">
@@ -194,7 +205,7 @@ export default function LandingPage() {
             </p>
           </div>
           <Link
-            href="/signup"
+            href="/onboarding"
             className="inline-flex h-11 shrink-0 items-center justify-center rounded-md bg-amber px-5 text-sm font-semibold text-amber-ink transition-transform duration-140 hover:opacity-95 active:scale-[0.98] focus-visible:outline"
           >
             Start with what you know
