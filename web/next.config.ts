@@ -7,10 +7,11 @@ const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
  *
  * A nonce-based policy in the App Router requires middleware that rewrites
  * every request, which forces every page to render dynamically and gives up
- * static generation for the landing page. For a read-mostly app with no auth
- * and no user-authored HTML, the trade is not worth it. Every other directive
- * is locked down, and Gemini output is rendered as escaped markdown, never
- * as HTML.
+ * static generation for the landing page. Auth is token-based with client-side
+ * session state (Authorization: Bearer header) rather than cookie rewrites,
+ * keeping public marketing and project pages fully static and fast. Every other
+ * directive is locked down, and Gemini output is rendered as escaped markdown,
+ * never as HTML.
  */
 const csp = [
   "default-src 'self'",

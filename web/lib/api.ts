@@ -76,6 +76,17 @@ function sessionId(): string | null {
   }
 }
 
+const AUTH_STORAGE_KEY = "ideaforge.auth.token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(AUTH_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The API origin. `NEXT_PUBLIC_*` is compiled into the browser bundle, so this
  * must never hold a secret - it is a public URL and nothing else.
@@ -135,6 +146,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   } = options;
   const url = buildUrl(path, query);
   const session = sessionId();
+  const auth = getAuthToken();
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -152,6 +164,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
         Accept: "application/json",
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         ...(session === null ? {} : { [SESSION_HEADER]: session }),
+        ...(auth === null ? {} : { Authorization: `Bearer ${auth}` }),
         ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -264,8 +277,21 @@ export interface RoadmapStep {
   is_done: boolean;
 }
 
+export interface User {
+  id: string;
+  email: string;
+  created_at: string;
+  onboarding_completed_at: string | null;
+}
+
+export interface AuthResponse {
+  user: User;
+  session_token: string;
+}
+
 export interface Project {
   id: string;
+  user_id?: string | null;
   title: string;
   summary: string;
   problem_solved: string;
