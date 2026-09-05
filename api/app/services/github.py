@@ -122,6 +122,34 @@ _TEXT_SUFFIXES = {
     ".yaml",
     ".yml",
 }
+#: Suffixes that carry an implementation, as opposed to text this collector
+#: also reads (config, data, docs). Only these earn the architecture-layer
+#: bonuses below: a `.gitignore` sitting in `api/` is not evidence of an API.
+_SOURCE_SUFFIXES = {
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cs",
+    ".dart",
+    ".go",
+    ".h",
+    ".hpp",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".mjs",
+    ".php",
+    ".py",
+    ".rb",
+    ".rs",
+    ".svelte",
+    ".swift",
+    ".ts",
+    ".tsx",
+    ".vue",
+}
 _VENDOR_SEGMENTS = {
     ".cache",
     ".next",
@@ -243,6 +271,13 @@ class GitHubLimits:
     max_tree_entries: int = 5_000
     max_files: int = 25
     max_file_bytes: int = 20 * 1024
+    # An empty or near-empty file - a package marker, a one-line re-export -
+    # costs a request and a slot while proving nothing about a planned feature.
+    min_file_bytes: int = 64
+    # Tests are worth reading, but they must not consume a budget meant for the
+    # implementation; without a cap a well-tested repo spends most of its slots
+    # proving only that it has tests.
+    max_test_files: int = 5
     # Kept below the evaluator prompt cap so every fetched byte can actually be
     # presented to Gemini; coverage never claims that silently truncated files
     # were analyzed.
@@ -268,6 +303,23 @@ class GitHubLimits:
             raise ValueError("GitHub limits must all be positive")
         if self.request_timeout_seconds <= 0 or self.total_timeout_seconds <= 0:
             raise ValueError("GitHub timeouts must be positive")
+        if self.min_file_bytes < 0 or self.max_test_files < 0:
+            raise ValueError("GitHub minimum file size and test cap must not be negative")
+
+    # Both caps are read through these so that lowering one limit can never
+    # contradict another's default: a caller who shrinks `max_file_bytes` for a
+    # test should not also have to remember to shrink the floor beneath it.
+    @property
+    def effective_min_file_bytes(self) -> int:
+        """The size floor, never above the ceiling it sits under."""
+
+        return min(self.min_file_bytes, self.max_file_bytes)
+
+    @property
+    def effective_max_test_files(self) -> int:
+        """The test-file cap, never above the total file budget."""
+
+        return min(self.max_test_files, self.max_files)
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,6 +467,27 @@ def is_safe_text_path(path: str) -> bool:
     return name in _TEXT_FILENAMES or PurePosixPath(name).suffix in _TEXT_SUFFIXES
 
 
+def is_test_path(path: str) -> bool:
+    """Return whether a path is a test, by directory or by filename convention."""
+
+    pure_path = PurePosixPath(path.lower())
+    name = pure_path.name
+    return (
+        bool({"test", "tests", "spec", "specs", "__tests__"} & set(pure_path.parts))
+        or name.startswith(("test_", "spec."))
+        or name.endswith("_test.py")
+        or ".test." in name
+        or ".spec." in name
+    )
+
+
+def _is_reserved_evidence(path: str) -> bool:
+    """Return whether a path is always worth a slot, whatever else competes."""
+
+    name = PurePosixPath(path.lower()).name
+    return name.startswith("readme") or name in _MANIFESTS
+
+
 def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
     """Score a safe path deterministically; higher scores are fetched first."""
 
@@ -422,36 +495,64 @@ def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
     pure_path = PurePosixPath(lowered)
     name = pure_path.name
     parts = set(pure_path.parts)
+    # Architecture bonuses describe where an implementation lives, so they are
+    # gated on a source suffix. Without the gate, a top-level `api/` directory
+    # - the ordinary shape of a monorepo - handed the same +80 to every file
+    # beneath it, including `.gitignore` and empty `__init__.py`, which then
+    # outranked the service layer and the README.
+    implements = PurePosixPath(name).suffix in _SOURCE_SUFFIXES
+    is_test = is_test_path(lowered)
     score = 10
 
     if name.startswith("readme"):
         score += 100
     if name in _MANIFESTS:
         score += 95
-    if parts & {
-        "api",
-        "controller",
-        "controllers",
-        "route",
-        "routes",
-        "service",
-        "services",
-    } or any(word in name for word in ("api", "controller", "route", "service")):
+    if implements and (
+        parts
+        & {
+            "controller",
+            "controllers",
+            "handler",
+            "handlers",
+            "route",
+            "router",
+            "routers",
+            "routes",
+            "service",
+            "services",
+            "view",
+            "views",
+        }
+        or any(word in name for word in ("api", "controller", "route", "service"))
+    ):
         score += 80
-    if parts & {"migration", "migrations", "model", "models", "schema", "schemas"} or any(
-        word in name for word in ("migration", "model", "schema")
+    # A bare `api/` directory is a deployment unit, not a layer: in a monorepo
+    # it contains the config, the database wiring and the tests as well as the
+    # implementation. It earns a weaker signal than `services/` or `routes/`,
+    # which name what the code inside them actually does.
+    if implements and "api" in parts:
+        score += 25
+    if implements and (
+        parts & {"migration", "migrations", "model", "models", "schema", "schemas"}
+        or any(word in name for word in ("migration", "model", "schema"))
     ):
         score += 78
-    if parts & {"component", "components", "page", "pages", "screen", "screens", "ui"}:
+    if implements and parts & {
+        "component",
+        "components",
+        "page",
+        "pages",
+        "screen",
+        "screens",
+        "ui",
+    }:
         score += 70
-    if (
-        "test" in parts
-        or "tests" in parts
-        or name.startswith(("test_", "spec."))
-        or ".test." in name
-        or ".spec." in name
-    ):
-        score += 75
+    # Tests prove that testing exists - one scored category - but they are not
+    # evidence that a feature is implemented, so they must never outrank the
+    # implementation they exercise.
+    if is_test:
+        score += 40
     if (
         name in _DEPLOYMENT_FILES
         or ".github" in parts
@@ -464,7 +565,11 @@ def relevance_score(path: str, planned_keywords: Iterable[str] = ()) -> int:
     path_tokens = planned_keyword_tokens(re.findall(r"[a-z0-9]+", lowered))
     matches = path_tokens & frozenset(planned_keywords)
     if matches:
-        score += 90 + min(30, 10 * (len(matches) - 1))
+        bonus = 90 + min(30, 10 * (len(matches) - 1))
+        # `test_reminders.py` matching "reminders" says the feature was tested,
+        # not built. Half credit keeps the signal without letting a test suite
+        # crowd out the code it covers.
+        score += bonus // 2 if is_test else bonus
     return score
 
 
@@ -605,7 +710,7 @@ class GitHubEvidenceCollector:
                 continue
             if not isinstance(size, int) or isinstance(size, bool) or size < 0:
                 continue
-            if size > self.limits.max_file_bytes:
+            if not (self.limits.effective_min_file_bytes <= size <= self.limits.max_file_bytes):
                 continue
             try:
                 safe_sha = self._required_sha(sha, f"blob for {path}")
@@ -624,15 +729,48 @@ class GitHubEvidenceCollector:
     def _select_within_declared_budget(
         self, candidates: list[_Candidate]
     ) -> tuple[_Candidate, ...]:
+        """Fill the budget by score, but never let one file role crowd out the rest.
+
+        Pure score ordering is not enough. On a real monorepo it selected ten
+        test files, three empty package markers and a `.gitignore`, while the
+        README and the entire service layer - where every planned feature is
+        actually implemented - lost the budget. A Planned-vs-Built report built
+        on that evidence reports working features as missing, which is worse
+        than reporting nothing.
+        """
+
         selected: list[_Candidate] = []
         selected_bytes = 0
-        for candidate in candidates:
+        tests_taken = 0
+
+        def take(candidate: _Candidate) -> bool:
+            nonlocal selected_bytes, tests_taken
             if len(selected) >= self.limits.max_files:
-                break
+                return False
             if selected_bytes + candidate.declared_size > self.limits.max_total_bytes:
-                continue
+                return False
             selected.append(candidate)
             selected_bytes += candidate.declared_size
+            if is_test_path(candidate.path):
+                tests_taken += 1
+            return True
+
+        # The README and the manifests are the cheapest, highest-signal files in
+        # any repository: what the student says it does, and what it depends on.
+        # Reading them is not negotiable, so they are taken before the contest
+        # for the remaining slots begins.
+        reserved = [item for item in candidates if _is_reserved_evidence(item.path)]
+        remaining = [item for item in candidates if not _is_reserved_evidence(item.path)]
+        for candidate in reserved:
+            take(candidate)
+
+        for candidate in remaining:
+            if len(selected) >= self.limits.max_files:
+                break
+            if is_test_path(candidate.path) and tests_taken >= self.limits.effective_max_test_files:
+                continue
+            take(candidate)
+
         return tuple(selected)
 
     async def _fetch_candidates(

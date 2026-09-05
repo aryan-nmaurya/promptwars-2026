@@ -133,6 +133,9 @@ async def test_collection_is_commit_pinned_and_uses_only_the_hard_coded_api_host
     entries = [{"type": "blob", "path": "README.md", "sha": readme_sha, "size": 7}]
     collector, client = _collector(
         _api_handler(entries, {readme_sha: b"Project"}, requests=requests),
+        # This test is about commit pinning and the host allowlist, so it opts
+        # out of the size floor rather than padding its fixture to clear it.
+        limits=GitHubLimits(min_file_bytes=0),
         token="server-token",
     )
     try:
@@ -174,7 +177,7 @@ async def test_selection_prioritizes_plan_evidence_and_skips_unsafe_paths() -> N
         contents[sha] = content
         path_for_sha[sha] = path
     requests: list[httpx.Request] = []
-    limits = GitHubLimits(max_files=3, max_file_bytes=20, max_total_bytes=50)
+    limits = GitHubLimits(max_files=3, max_file_bytes=20, max_total_bytes=50, min_file_bytes=0)
     collector, client = _collector(
         _api_handler(entries, contents, requests=requests), limits=limits
     )
@@ -186,7 +189,10 @@ async def test_selection_prioritizes_plan_evidence_and_skips_unsafe_paths() -> N
         await client.aclose()
 
     paths = [file.path for file in result.files]
-    assert paths == ["tests/test_reminders.py", "src/reminder/routes.py", "README.md"]
+    # The README and the manifest are taken before anything competes for the
+    # remaining slots, and the route that implements the planned feature
+    # outranks the test that merely exercises it.
+    assert paths == ["README.md", "package.json", "src/reminder/routes.py"]
     fetched_shas = [request.url.path.rsplit("/", 1)[-1] for request in requests[3:]]
     assert {path_for_sha[sha] for sha in fetched_shas} == set(paths)
     assert all(".env" not in request.url.path for request in requests)
@@ -200,7 +206,7 @@ async def test_tree_processing_is_bounded_and_reports_incomplete_coverage() -> N
         for index in range(1, 7)
     ]
     contents = {_sha(index): b"x" for index in range(1, 4)}
-    limits = GitHubLimits(max_tree_entries=3, max_files=3)
+    limits = GitHubLimits(max_tree_entries=3, max_files=3, min_file_bytes=0)
     collector, client = _collector(_api_handler(entries, contents), limits=limits)
     try:
         result = await collector.collect("https://github.com/acme/demo")
@@ -253,7 +259,9 @@ async def test_binary_invalid_and_secret_content_never_reaches_the_evidence_pack
         {"type": "blob", "path": "notes.txt", "sha": _sha(2), "size": len(files[_sha(2)])},
         {"type": "blob", "path": "legacy.txt", "sha": _sha(3), "size": len(files[_sha(3)])},
     ]
-    collector, client = _collector(_api_handler(entries, files))
+    collector, client = _collector(
+        _api_handler(entries, files), limits=GitHubLimits(min_file_bytes=0)
+    )
     try:
         result = await collector.collect("https://github.com/acme/demo")
     finally:
@@ -379,3 +387,106 @@ async def test_rate_limit_errors_report_whether_a_server_token_was_used(
         await collector.collect("https://github.com/owner/repo")
 
     assert caught.value.authenticated is (token is not None)
+
+
+def test_a_container_directory_never_outranks_the_layer_that_names_itself() -> None:
+    """A monorepo's top-level `api/` inflated every file beneath it equally.
+
+    While it granted the same architecture bonus as `services/`, the database
+    wiring, the config and the empty package markers under `api/` all tied with
+    the service layer that implements the planned features, and won the budget
+    on an alphabetical tiebreak.
+    """
+
+    assert relevance_score("api/app/services/evaluator.py") > relevance_score("api/app/db.py")
+    assert relevance_score("api/app/routers/mentor.py") > relevance_score("api/app/config.py")
+    # Non-source text in a source directory describes nothing it sits next to.
+    assert relevance_score("api/app/services/gemini.py") > relevance_score("api/.gitignore")
+
+
+def test_implementation_outranks_the_tests_that_exercise_it() -> None:
+    """`test_reminders.py` says a feature was tested, never that it was built."""
+
+    planned = planned_keyword_tokens(["follow-up reminders"])
+    assert relevance_score("src/services/reminders.py", planned) > relevance_score(
+        "tests/test_reminders.py", planned
+    )
+
+
+async def test_empty_and_trivial_files_are_never_fetched_as_evidence() -> None:
+    """An empty package marker costs a request and a slot while proving nothing."""
+
+    body = b"x" * 200
+    entries = [
+        {"type": "blob", "path": "src/app/__init__.py", "sha": _sha(1), "size": 0},
+        {"type": "blob", "path": "src/app/services/reminders.py", "sha": _sha(2), "size": 200},
+    ]
+    collector, client = _collector(_api_handler(entries, {_sha(2): body}))
+    try:
+        result = await collector.collect("https://github.com/acme/demo")
+    finally:
+        await client.aclose()
+
+    assert [file.path for file in result.files] == ["src/app/services/reminders.py"]
+
+
+async def test_the_readme_is_analyzed_even_when_richer_files_outscore_it() -> None:
+    """Documentation is a scored category; evaluating a repo unread is indefensible."""
+
+    body = b"y" * 300
+    entries = [{"type": "blob", "path": "README.md", "sha": _sha(99), "size": 300}]
+    contents = {_sha(99): body}
+    for index in range(1, 6):
+        sha = _sha(index)
+        entries.append(
+            {"type": "blob", "path": f"src/routes/feature_{index}.py", "sha": sha, "size": 300}
+        )
+        contents[sha] = body
+
+    collector, client = _collector(
+        _api_handler(entries, contents), limits=GitHubLimits(max_files=2)
+    )
+    try:
+        result = await collector.collect(
+            "https://github.com/acme/demo", planned_keywords=["feature"]
+        )
+    finally:
+        await client.aclose()
+
+    assert result.files[0].path == "README.md"
+
+
+async def test_tests_cannot_consume_the_whole_evidence_budget() -> None:
+    """A well-tested repo must not spend every slot proving only that it has tests."""
+
+    body = b"z" * 200
+    entries: list[dict[str, object]] = []
+    contents: dict[str, bytes] = {}
+    for index in range(1, 9):
+        sha = _sha(index)
+        entries.append({"type": "blob", "path": f"tests/test_{index}.py", "sha": sha, "size": 200})
+        contents[sha] = body
+    for index in range(20, 23):
+        sha = _sha(index)
+        entries.append({"type": "blob", "path": f"src/lib/mod_{index}.py", "sha": sha, "size": 200})
+        contents[sha] = body
+
+    collector, client = _collector(
+        _api_handler(entries, contents), limits=GitHubLimits(max_files=8, max_test_files=2)
+    )
+    try:
+        result = await collector.collect("https://github.com/acme/demo")
+    finally:
+        await client.aclose()
+
+    selected = [file.path for file in result.files]
+    assert sum(1 for path in selected if path.startswith("tests/")) == 2
+    assert any(path.startswith("src/lib/") for path in selected)
+
+
+def test_derived_limits_never_contradict_a_lowered_ceiling() -> None:
+    """Shrinking one budget must not force the caller to remember the others."""
+
+    limits = GitHubLimits(max_file_bytes=16, max_files=2)
+    assert limits.effective_min_file_bytes == 16
+    assert limits.effective_max_test_files == 2
